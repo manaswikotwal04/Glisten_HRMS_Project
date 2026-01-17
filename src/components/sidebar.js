@@ -1,58 +1,101 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import glisten from "../assets/glisten.png";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const Sidebar = () => {
+  const navigate = useNavigate();
+  const role = localStorage.getItem("role"); // admin | employee
 
-  
-  const [imgStatus, setImgStatus] = useState("idle");
- 
-
-  // compute a reliable image URL: prefer imported string, fallback to new URL()
-  let imageSrc = glisten;
+  // ✅ read employeeId safely
+  let employeeId = null;
   try {
-    if (!imageSrc || typeof imageSrc !== "string") {
-      imageSrc = new URL("../assets/glisten.png", import.meta.url).href;
-    }
-  } catch (e) {
-    console.log("image URL fallback error:", e);
+    const user = JSON.parse(localStorage.getItem("user"));
+    employeeId = user?.employeeId || null;
+  } catch {
+    employeeId = null;
   }
 
-  useEffect(() => {
-    if (!imageSrc) {
-      setImgStatus("no-src");
-      return;
-    }
-    const tester = new Image();
-    tester.onload = () => setImgStatus("loaded");
-    tester.onerror = () => setImgStatus("error");
-    tester.src = imageSrc;
-  }, [imageSrc]);
+  /* ================= LOGOUT ================= */
+  const handleLogout = () => {
+    if (!window.confirm("Are you sure you want to logout?")) return;
+
+    localStorage.clear();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <div className="sidebar">
 
+      {/* LOGO */}
       <div className="logo">
         <img
-          src={imageSrc}
+          src={glisten}
           alt="Glisten Logo"
-          onError={(e) => {
-            console.log("img load error:", e);
-            e.currentTarget.style.display = "none";
-          }}
+          onError={(e) => (e.currentTarget.style.display = "none")}
         />
-        
       </div>
 
+      {/* MENU */}
       <div className="menu">
-  <Link to="/app/employee-dashboard" className="menu-item">Dashboard</Link>
-  <Link to="/app/employees" className="menu-item">Employees</Link>
-  <Link to="/app/payroll" className="menu-item">Payroll / Salary Slips</Link>
-  <Link to="/app/attendance" className="menu-item">Attendance</Link>
-  <Link to="/app/settings" className="menu-item">Settings</Link>
-</div>
 
+        {/* ================= ADMIN ================= */}
+        {role === "admin" && (
+          <>
+            <Link to="/app/employees" className="menu-item">
+              Employees
+            </Link>
 
+            <Link to="/app/salary-structure/add" className="menu-item">
+              Add Salary Structure
+            </Link>
+
+            <Link to="/app/generate-payslip" className="menu-item">
+              Generate Payslip
+            </Link>
+
+            <Link to="/app/payroll-list" className="menu-item">
+              Payroll List
+            </Link>
+
+            {/* ✅ LOGOUT AFTER PAYROLL LIST */}
+            <button
+              type="button"
+              className="menu-item logout-btn"
+              onClick={handleLogout}
+            >
+              Logout
+            </button>
+          </>
+        )}
+
+        {/* ================= EMPLOYEE ================= */}
+        {role === "employee" && (
+          <>
+            <Link to="/app/employee-dashboard" className="menu-item">
+              Dashboard
+            </Link>
+
+            {employeeId && (
+              <Link
+                to={`/app/employee-payslips/${employeeId}`}
+                className="menu-item"
+              >
+                My Payslips
+              </Link>
+            )}
+
+            {/* ✅ LOGOUT FOR EMPLOYEE */}
+            <button
+              type="button"
+              className="menu-item logout-btn"
+              onClick={handleLogout}
+            >
+              Logout
+            </button>
+          </>
+        )}
+
+      </div>
     </div>
   );
 };

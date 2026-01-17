@@ -1,60 +1,35 @@
 import express from "express";
-import { auth } from "../middleware/auth.middleware.js";
-import Employee from "../models/Employee.js";
+import {
+  addEmployee,
+  getAllEmployees,
+  getInactiveEmployees,
+  getEmployeeById,
+  getEmployeeByEmployeeId,
+  updateEmployee,
+  deleteEmployee,
+  restoreEmployee,
+  hardDeleteEmployee
+} from "../controllers/employee.controller.js";
 
 const router = express.Router();
 
-// ✅ Get all employees
-router.get("/", auth, async (req, res) => {
-  try {
-    const employees = await Employee.find(); // already sorted
-    res.json(employees);
-  } catch (err) {
-    console.error("GET EMPLOYEES ERROR:", err);
-    res.status(500).json({ message: err.message });
-  }
-});
+/* ================= CREATE ================= */
+router.post("/add", addEmployee);
 
-// ✅ Get employee by ID
-router.get("/:id", auth, async (req, res) => {
-  try {
-    const emp = await Employee.findById(req.params.id);
-    if (!emp) return res.status(404).json({ message: "Employee not found" });
-    res.json(emp);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
+/* ================= READ ================= */
+router.get("/", getAllEmployees);
+router.get("/inactive", getInactiveEmployees);
 
-// ✅ Create employee
-router.post("/", auth, async (req, res) => {
-  try {
-    const emp = await Employee.create(req.body);
-    res.status(201).json(emp);
-  } catch (err) {
-    console.error("CREATE EMPLOYEE ERROR:", err);
-    res.status(500).json({ message: err.message });
-  }
-});
+/* 🔹 Explicit ID routes */
+router.get("/id/:id", getEmployeeById);
+router.get("/employeeId/:employeeId", getEmployeeByEmployeeId);
 
-// ✅ Update employee
-router.put("/:id", auth, async (req, res) => {
-  try {
-    const emp = await Employee.findByIdAndUpdate(req.params.id, req.body);
-    res.json(emp);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
+/* ================= UPDATE ================= */
+router.put("/:id", updateEmployee);
+router.put("/restore/:id", restoreEmployee);
 
-// ✅ Delete employee
-router.delete("/:id", auth, async (req, res) => {
-  try {
-    await Employee.findByIdAndDelete(req.params.id);
-    res.json({ message: "Employee deleted" });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
+/* ================= DELETE ================= */
+router.delete("/:id", deleteEmployee);          // soft delete
+router.delete("/hard/:id", hardDeleteEmployee); // hard delete
 
 export default router;

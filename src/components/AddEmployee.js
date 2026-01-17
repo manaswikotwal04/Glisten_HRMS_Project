@@ -16,11 +16,9 @@ const AddEmployee = () => {
     password: "",
     status: "Active",
 
-    // ✅ Address
     currentAddress: "",
     permanentAddress: "",
 
-    // ✅ Bank & statutory fields (MATCH BACKEND)
     bankName: "",
     accountNo: "",
     pfNo: "",
@@ -30,43 +28,86 @@ const AddEmployee = () => {
 
   const navigate = useNavigate();
   const [formData, setFormData] = useState(INITIAL_FORM);
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
+const isStrongPassword = (password) => {
+  return (
+    password.length >= 8 &&
+    /[A-Z]/.test(password) &&
+    /[a-z]/.test(password) &&
+    /\d/.test(password) &&
+    /[@$!%*?&#]/.test(password)
+  );
+};
 
+  /* ================= SUBMIT ================= */
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    try {
-      const res = await fetch("http://localhost:5000/api/employees", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + localStorage.getItem("token")
-        },
-        body: JSON.stringify(formData)
-      });
+  // 🔐 PASSWORD STRENGTH CHECK (ADDED)
+  if (
+    formData.password.length < 8 ||
+    !/[A-Z]/.test(formData.password) ||
+    !/[a-z]/.test(formData.password) ||
+    !/\d/.test(formData.password) ||
+    !/[@$!%*?&#]/.test(formData.password)
+  ) {
+    alert(
+      "Password must be at least 8 characters and include uppercase, lowercase, number, and special character"
+    );
+    return;
+  }
 
-      const data = await res.json();
+  setLoading(true);
 
-      if (!res.ok) {
-        alert("Error: " + (data.message || "Request failed"));
-        return;
-      }
+  try {
+    // 🔥 MAP FRONTEND → BACKEND FIELD NAMES
+    const payload = {
+      ...formData,
+      accountNumber: formData.accountNo,
+      pfNumber: formData.pfNo,
+      panNumber: formData.pan
+    };
 
-      alert("Employee Added Successfully 🎉");
-      setFormData(INITIAL_FORM);
-      navigate("/app/employees");
+    delete payload.accountNo;
+    delete payload.pfNo;
+    delete payload.pan;
 
-    } catch (err) {
-      console.error(err);
-      alert("Server Error 🚨");
+    const res = await fetch("http://localhost:5000/api/employee/add", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + localStorage.getItem("token")
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.message || "Failed to add employee");
+      return;
     }
-  };
+
+    alert("Employee Added Successfully 🎉");
+    setFormData(INITIAL_FORM);
+    navigate("/app/employees");
+
+  } catch (error) {
+    console.error(error);
+    alert("Server Error 🚨");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="add-employee-page">
@@ -82,27 +123,27 @@ const AddEmployee = () => {
           {/* BASIC DETAILS */}
           <div className="form-field">
             <label>Employee Name</label>
-            <input name="name" value={formData.name} onChange={handleChange} />
+            <input name="name" value={formData.name} onChange={handleChange} required />
           </div>
 
           <div className="form-field">
             <label>Employee ID</label>
-            <input name="employeeId" value={formData.employeeId} onChange={handleChange} />
+            <input name="employeeId" value={formData.employeeId} onChange={handleChange} required />
           </div>
 
           <div className="form-field">
             <label>Email</label>
-            <input name="email" type="email" value={formData.email} onChange={handleChange} />
+            <input type="email" name="email" value={formData.email} onChange={handleChange} required />
           </div>
 
           <div className="form-field">
             <label>Phone</label>
-            <input name="phone" value={formData.phone} onChange={handleChange} />
+            <input name="phone" value={formData.phone} onChange={handleChange} required />
           </div>
 
           <div className="form-field">
             <label>Department</label>
-            <select name="department" value={formData.department} onChange={handleChange}>
+            <select name="department" value={formData.department} onChange={handleChange} required>
               <option value="">Select</option>
               <option>Human Resources</option>
               <option>Engineering</option>
@@ -113,7 +154,7 @@ const AddEmployee = () => {
 
           <div className="form-field">
             <label>Role</label>
-            <select name="role" value={formData.role} onChange={handleChange}>
+            <select name="role" value={formData.role} onChange={handleChange} required>
               <option value="">Select</option>
               <option>Manager</option>
               <option>Developer</option>
@@ -124,12 +165,12 @@ const AddEmployee = () => {
 
           <div className="form-field">
             <label>Joining Date</label>
-            <input name="joinDate" type="date" value={formData.joinDate} onChange={handleChange} />
+            <input type="date" name="joinDate" value={formData.joinDate} onChange={handleChange} required />
           </div>
 
           <div className="form-field">
             <label>Annual Salary</label>
-            <input name="salary" type="number" value={formData.salary} onChange={handleChange} />
+            <input type="number" name="salary" value={formData.salary} onChange={handleChange} required />
           </div>
 
           <div className="form-field">
@@ -139,19 +180,18 @@ const AddEmployee = () => {
 
           <div className="form-field">
             <label>Password</label>
-            <input name="password" type="password" value={formData.password} onChange={handleChange} />
+            <input type="password" name="password" value={formData.password} onChange={handleChange} required />
           </div>
 
           <div className="form-field">
             <label>Status</label>
             <select name="status" value={formData.status} onChange={handleChange}>
               <option value="Active">Active</option>
-              <option value="On Leave">On Leave</option>
               <option value="Inactive">Inactive</option>
             </select>
           </div>
 
-          {/* BANK DETAILS */}
+          {/* BANK */}
           <div className="form-field">
             <label>Bank Name</label>
             <input name="bankName" value={formData.bankName} onChange={handleChange} />
@@ -188,9 +228,19 @@ const AddEmployee = () => {
             <input name="permanentAddress" value={formData.permanentAddress} onChange={handleChange} />
           </div>
 
+          {/* ACTIONS */}
           <div className="form-actions">
-            <button type="button" className="btn-cancel" onClick={() => navigate("/app/employees")}>Cancel</button>
-            <button type="submit" className="btn-save">Save Employee</button>
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={() => navigate("/app/employees")}
+            >
+              Cancel
+            </button>
+
+            <button type="submit" className="btn-save" disabled={loading}>
+              {loading ? "Saving..." : "Save Employee"}
+            </button>
           </div>
 
         </form>

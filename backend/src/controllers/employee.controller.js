@@ -1,15 +1,155 @@
-import bcrypt from "bcrypt";
-import Employee from "../models/Employee.js";
-import User from "../models/user.model.js";
+import db from "../config/db.js";
+import bcrypt from "bcryptjs";
 
-/* =========================================================
-   CREATE EMPLOYEE (Admin action)
-========================================================= */
-export const createEmployee = async (req, res) => {
+/* ================= DATE HELPER ================= */
+const formatDate = (date) => {
+  if (!date) return null;
+  const d = new Date(date);
+  if (isNaN(d)) return null;
+  return d.toISOString().split("T")[0]; // YYYY-MM-DD
+};
+
+/* ================= ADD EMPLOYEE ================= */
+export const addEmployee = async (req, res) => {
+  try {
+    const {
+      employeeId,
+      name,
+      email,
+      phone,
+      department,
+      role,
+      joinDate,
+      salary,
+      bloodGroup,
+      password,
+      status,
+      currentAddress,
+      permanentAddress,
+      bankName,
+      accountNumber,
+      pfNumber,
+      panNumber,
+      location
+    } = req.body;
+
+    if (!employeeId || !name || !password) {
+      return res.status(400).json({
+        message: "Employee ID, Name and Password are required"
+      });
+    }
+
+    const [exists] = await db.query(
+      "SELECT employeeId FROM employee WHERE employeeId = ? OR email = ?",
+      [employeeId, email]
+    );
+
+    if (exists.length) {
+      return res.status(400).json({ message: "Employee already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await db.query(
+      `
+      INSERT INTO employee (
+        employeeId, name, email, phone, department, role, joinDate, salary,
+        bloodGroup, password, status,
+        currentAddress, permanentAddress,
+        bankName, accountNumber, pfNumber, panNumber, location
+      )
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      `,
+      [
+        employeeId,
+        name,
+        email || null,
+        phone || null,
+        department || null,
+        role || null,
+        formatDate(joinDate),
+        salary || null,
+        bloodGroup || null,
+        hashedPassword,
+        status || "Active",
+        currentAddress || null,
+        permanentAddress || null,
+        bankName || null,
+        accountNumber || null,
+        pfNumber || null,
+        panNumber || null,
+        location || null
+      ]
+    );
+
+    res.status(201).json({
+      message: "Employee added successfully",
+      employeeId
+    });
+  } catch (err) {
+    console.error("Add employee error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ================= GET ALL ACTIVE EMPLOYEES ================= */
+export const getAllEmployees = async (req, res) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT employeeId, name, department, role, email, status
+      FROM employee
+      WHERE status = 'Active'
+      ORDER BY name
+    `);
+
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ================= GET INACTIVE EMPLOYEES ================= */
+export const getInactiveEmployees = async (req, res) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT employeeId, name, department, role, email, status
+      FROM employee
+      WHERE status = 'Inactive'
+      ORDER BY name
+    `);
+
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ================= GET EMPLOYEE (BY employeeId) ================= */
+/* NOTE: API NAME KEPT SAME => /employee/:id */
+export const getEmployeeById = async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      "SELECT * FROM employee WHERE employeeId = ?",
+      [req.params.id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: "Employee not found" });
+    }
+
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ================= UPDATE EMPLOYEE ================= */
+export const updateEmployee = async (req, res) => {
   try {
     const {
       name,
-      employeeId,
       email,
       phone,
       department,
@@ -21,194 +161,111 @@ export const createEmployee = async (req, res) => {
       currentAddress,
       permanentAddress,
       bankName,
-      accountNo,
-      pfNo,
-      pan,
+      accountNumber,
+      pfNumber,
+      panNumber,
       location
     } = req.body;
 
-    // ✅ Validate required fields
-    if (!name || !employeeId || !email) {
-      return res.status(400).json({
-        message: "Name, Employee ID and Email are required"
-      });
-    }
-
-    // ✅ Check duplicate employeeId
-    const empIdExists = await Employee.findOne({ employeeId });
-    if (empIdExists) {
-      return res.status(400).json({
-        message: "Employee ID already exists"
-      });
-    }
-
-    // ✅ Check duplicate email
-    const emailExists = await Employee.findOne({ email });
-    if (emailExists) {
-      return res.status(400).json({
-        message: "Employee email already exists"
-      });
-    }
-
-    // ✅ Temporary password
-    const tempPassword = "Welcome@123";
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
-
-    // ✅ Create employee record
-    const employee = await Employee.create({
-      name,
-      employeeId,
-      email,
-      phone,
-      department,
-      role,
-      joinDate,
-      salary,
-      bloodGroup,
-      status: status || "Active",
-      password: hashedPassword,
-      currentAddress,
-      permanentAddress,
-      bankName,
-      accountNo,
-      pfNo,
-      pan,
-      location
-    });
-
-    // ✅ Create auth user record
-    await User.create({
-      name,
-      email,
-      tempPassword: hashedPassword,
-      role: "employee",
-      firstLogin: true
-    });
-
-    return res.status(201).json({
-      message: "Employee created successfully",
-      tempPassword,
-      employee
-    });
-
-  } catch (err) {
-    console.error("Create employee error:", err);
-
-    // ✅ Handle MySQL unique constraint error
-    if (err.name === "SequelizeUniqueConstraintError") {
-      return res.status(400).json({
-        message: "Employee ID or Email already exists"
-      });
-    }
-
-    res.status(500).json({ message: err.message });
-  }
-};
-
-/* =========================================================
-   GET ALL EMPLOYEES
-========================================================= */
-export const getAllEmployees = async (req, res) => {
-  try {
-    const employees = await Employee.find();
-    res.json(employees);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-/* =========================================================
-   GET EMPLOYEE BY UUID (_id)
-========================================================= */
-export const getEmployeeById = async (req, res) => {
-  try {
-    const employee = await Employee.findById(req.params.id);
-    if (!employee)
-      return res.status(404).json({ message: "Employee not found" });
-
-    res.json(employee);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-/* =========================================================
-   UPDATE EMPLOYEE
-========================================================= */
-export const updateEmployee = async (req, res) => {
-  try {
-    const updated = await Employee.findByIdAndUpdate(
-      req.params.id,
-      req.body
+    const [result] = await db.query(
+      `
+      UPDATE employee SET
+        name = ?, email = ?, phone = ?, department = ?, role = ?,
+        joinDate = ?, salary = ?, bloodGroup = ?, status = ?,
+        currentAddress = ?, permanentAddress = ?,
+        bankName = ?, accountNumber = ?, pfNumber = ?, panNumber = ?, location = ?
+      WHERE employeeId = ?
+      `,
+      [
+        name || null,
+        email || null,
+        phone || null,
+        department || null,
+        role || null,
+        formatDate(joinDate),
+        salary || null,
+        bloodGroup || null,
+        status || "Active",
+        currentAddress || null,
+        permanentAddress || null,
+        bankName || null,
+        accountNumber || null,
+        pfNumber || null,
+        panNumber || null,
+        location || null,
+        req.params.id   // employeeId
+      ]
     );
 
-    if (!updated)
+    if (!result.affectedRows) {
       return res.status(404).json({ message: "Employee not found" });
+    }
 
-    res.json({
-      message: "Employee updated successfully",
-      employee: updated
-    });
+    res.json({ message: "Employee updated successfully" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("Update employee error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
-/* =========================================================
-   DELETE EMPLOYEE (SAFE)
-========================================================= */
+/* ================= SOFT DELETE ================= */
 export const deleteEmployee = async (req, res) => {
-  try {
-    const employee = await Employee.findById(req.params.id);
-    if (!employee)
-      return res.status(404).json({ message: "Employee not found" });
+  const [result] = await db.query(
+    "UPDATE employee SET status = 'Inactive' WHERE employeeId = ?",
+    [req.params.id]
+  );
 
-    // ✅ Delete employee
-    await Employee.findByIdAndDelete(req.params.id);
-
-    // ✅ Delete auth user (if exists)
-    const user = await User.findOne({ email: employee.email });
-    if (user) {
-      await User.findByIdAndUpdate(user._id, { deleted: true });
-    }
-
-    res.json({ message: "Employee deleted successfully" });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+  if (!result.affectedRows) {
+    return res.status(404).json({ message: "Employee not found" });
   }
+
+  res.json({ message: "Employee deactivated successfully" });
 };
 
-/* =========================================================
-   CHANGE EMPLOYEE PASSWORD (BY UUID)
-========================================================= */
-export const changeEmployeePassword = async (req, res) => {
-  try {
-    const { employeeUuid, newPassword } = req.body;
+/* ================= RESTORE EMPLOYEE ================= */
+export const restoreEmployee = async (req, res) => {
+  const [result] = await db.query(
+    "UPDATE employee SET status = 'Active' WHERE employeeId = ?",
+    [req.params.id]
+  );
 
-    if (!employeeUuid || !newPassword) {
-      return res.status(400).json({ message: "Invalid request" });
-    }
+  if (!result.affectedRows) {
+    return res.status(404).json({ message: "Employee not found" });
+  }
 
-    const hash = await bcrypt.hash(newPassword, 10);
+  res.json({ message: "Employee restored successfully" });
+};
 
-    const employee = await Employee.findByIdAndUpdate(employeeUuid, {
-      password: hash
+/* ================= HARD DELETE (INACTIVE ONLY) ================= */
+export const hardDeleteEmployee = async (req, res) => {
+  const [result] = await db.query(
+    "DELETE FROM employee WHERE employeeId = ? AND status = 'Inactive'",
+    [req.params.id]
+  );
+
+  if (!result.affectedRows) {
+    return res.status(404).json({
+      message: "Employee not found or still active"
     });
+  }
 
-    if (!employee)
-      return res.status(404).json({ message: "Employee not found" });
-
-    await User.findOneAndUpdate(
-      { email: employee.email },
-      {
-        password: hash,
-        tempPassword: null,
-        firstLogin: false
-      }
+  res.json({ message: "Employee permanently deleted" });
+};
+/* ================= GET BY EMPLOYEE ID (ALIAS – FRONTEND SAFE) ================= */
+export const getEmployeeByEmployeeId = async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      "SELECT * FROM employee WHERE employeeId = ?",
+      [req.params.employeeId]
     );
 
-    res.json({ message: "Password updated successfully" });
+    if (!rows.length) {
+      return res.status(404).json({ message: "Employee not found" });
+    }
+
+    res.json(rows[0]);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("Get employee by employeeId error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };

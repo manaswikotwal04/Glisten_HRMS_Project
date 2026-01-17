@@ -1,8 +1,3 @@
-/* Prevent page scrolling */
-html, body {
-  overflow: hidden;
-  height: 100%;
-}
 
 /* Sidebar container */
 .sidebar {
@@ -691,4 +686,51 @@ select:focus {
 .salary-page::-webkit-scrollbar-track {
   background: transparent;
 }
+.add-salary-scroll {
+  height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding-right: 8px;
+}
 
+.action-cell {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 6px;
+  border-radius: 6px;
+  transition: background 0.2s ease;
+}
+
+.icon-btn:hover {
+  background: #f1f5f9;
+}
+.profile-card {
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+  max-width: 600px;
+}
+
+.profile-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.profile-label {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.profile-value {
+  font-weight: 600;
+}

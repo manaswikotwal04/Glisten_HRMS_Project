@@ -7,34 +7,51 @@ import {
   Navigate
 } from "react-router-dom";
 
-import Sidebar from "./components/sidebar.js";
-import LoginPage from "./components/LoginPage.js";
+/* ===== COMPONENTS ===== */
+import Sidebar from "./components/sidebar";
+import LoginPage from "./components/LoginPage";
 
-import Employee from "./components/Employee.js";
-import AddEmployee from "./components/AddEmployee.js";
-import EditEmployee from "./components/EditEmployee.js";
+import Employee from "./components/Employee";
+import AddEmployee from "./components/AddEmployee";
+import EditEmployee from "./components/EditEmployee";
 
-import Payroll from "./components/Payroll.js";
-import GenerateSalarySlip from "./components/generatesalaryslip.js";
+import EmployeeDashboard from "./components/EmployeeDashboard";
+import EmployeePayslips from "./components/EmployeePayslips";
 
-import EmployeeDashboard from "./components/EmployeeDashboard.js";
-import EmployeePayslips from "./components/EmployeePayslips.js";
+import AddSalaryStructure from "./components/AddSalaryStructure";
+import GeneratePayslip from "./components/GeneratePayslips";
+import PayrollList from "./components/PayrollList";
+import ChangePassword from "./components/changepassword";
+/* 🔥 RESET PASSWORD */
+import ForgotPassword from "./components/ForgotPassword";
+import ResetPassword from "./components/ResetPassword";
 
+/* =========================
+   ROLE GUARD
+========================= */
+const RequireRole = ({ role, children }) => {
+  const userRole = localStorage.getItem("role");
 
-// ⭐ ONE LAYOUT — Sidebar only for ADMIN ⭐
+  if (!userRole || userRole !== role) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+};
+
+/* =========================
+   APP LAYOUT
+========================= */
 const AppLayout = () => {
   const role = localStorage.getItem("role");
 
-  // If user refreshes page without login
   if (!role) {
     return <Navigate to="/login" replace />;
   }
 
   return (
     <div className="app-layout">
-      {/* Sidebar visible ONLY for admin */}
       {role === "admin" && <Sidebar />}
-
       <div className="content-area">
         <Outlet />
       </div>
@@ -42,45 +59,113 @@ const AppLayout = () => {
   );
 };
 
-
-// ⭐ ROUTES ⭐
+/* =========================
+   ROUTER
+========================= */
 const appRouter = createBrowserRouter([
+  { path: "/", element: <Navigate to="/login" replace /> },
 
-  // DEFAULT → redirect to login
-  {
-    path: "/",
-    element: <Navigate to="/login" replace />
-  },
+  { path: "/login", element: <LoginPage /> },
 
-  // LOGIN PAGE
-  {
-    path: "/login",
-    element: <LoginPage />
-  },
+  /* PUBLIC PASSWORD ROUTES */
+  { path: "/forgot-password", element: <ForgotPassword /> },
 
-  // MAIN APPLICATION (after login)
+  { path: "/reset-password", element: <ResetPassword /> },
+
   {
     path: "/app",
     element: <AppLayout />,
     children: [
 
-      // ========= ADMIN PAGES =========
-      { path: "employees", element: <Employee /> },
-      { path: "employees/add", element: <AddEmployee /> },
-      { path: "employees/edit/:id", element: <EditEmployee /> },
+      /* ===== ADMIN ===== */
 
-      { path: "payroll", element: <Payroll /> },
-      { path: "payroll/generate", element: <GenerateSalarySlip /> },
+      {
+        path: "employees",
+        element: (
+          <RequireRole role="admin">
+            <Employee />
+          </RequireRole>
+        )
+      },
 
-      // ========= EMPLOYEE PAGES =========
-      { path: "employee-dashboard", element: <EmployeeDashboard /> },
+      {
+        path: "employees/add",
+        element: (
+          <RequireRole role="admin">
+            <AddEmployee />
+          </RequireRole>
+        )
+      },
 
-      // 👇 NEW — EMPLOYEE PAYSLIPS PAGE
-      { path: "employee-payslips/:id", element: <EmployeePayslips /> }
+      {
+        path: "employees/edit/:employeeId", // ✅ CORRECT
+        element: (
+          <RequireRole role="admin">
+            <EditEmployee />
+          </RequireRole>
+        )
+      },
+
+      {
+        path: "salary-structure/add",
+        element: (
+          <RequireRole role="admin">
+            <AddSalaryStructure />
+          </RequireRole>
+        )
+      },
+
+      {
+        path: "generate-payslip",
+        element: (
+          <RequireRole role="admin">
+            <GeneratePayslip />
+          </RequireRole>
+        )
+      },
+
+      {
+        path: "payroll-list",
+        element: (
+          <RequireRole role="admin">
+            <PayrollList />
+          </RequireRole>
+        )
+      },
+
+      /* ===== EMPLOYEE ===== */
+
+      {
+        path: "employee-dashboard",
+        element: (
+          <RequireRole role="employee">
+            <EmployeeDashboard />
+          </RequireRole>
+        )
+      },
+
+      {
+        path: "employee-payslips/:employeeId",
+        element: (
+          <RequireRole role="employee">
+            <EmployeePayslips />
+          </RequireRole>
+        )
+      },
+      {
+        path: "change-password",
+        element: (
+          <RequireRole role="employee">
+            <ChangePassword />
+          </RequireRole>
+        )
+      }
     ]
   }
 ]);
 
-
+/* =========================
+   RENDER
+========================= */
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(<RouterProvider router={appRouter} />);

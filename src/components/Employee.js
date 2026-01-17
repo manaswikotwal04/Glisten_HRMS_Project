@@ -3,21 +3,29 @@ import { useNavigate } from "react-router-dom";
 
 const Employee = () => {
   const navigate = useNavigate();
+
   const [employees, setEmployees] = useState([]);
   const [search, setSearch] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  // ▶ Fetch Employees (with Token)
+  /* ================= LOAD EMPLOYEES ================= */
   const loadEmployees = async () => {
+    setLoading(true);
     try {
       const token = localStorage.getItem("token");
       if (!token) {
-        navigate("/login");
+        navigate("/login", { replace: true });
         return;
       }
 
-      const res = await fetch("http://localhost:5000/api/employees", {
+      const url = showInactive
+        ? "http://localhost:5000/api/employee/inactive"
+        : "http://localhost:5000/api/employee";
+
+      const res = await fetch(url, {
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         }
       });
@@ -25,13 +33,7 @@ const Employee = () => {
       if (res.status === 401) {
         alert("Session expired — please login again");
         localStorage.clear();
-        navigate("/login");
-        return;
-      }
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: res.statusText }));
-        alert(err.message || "Failed to fetch employees");
+        navigate("/login", { replace: true });
         return;
       }
 
@@ -40,53 +42,86 @@ const Employee = () => {
     } catch (err) {
       console.error("Fetch employees error:", err);
       alert("Network error — could not reach backend");
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     loadEmployees();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showInactive]);
 
-  // ▶ Delete Employee
-  const deleteEmployee = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this employee?")) return;
+  /* ================= SOFT DELETE ================= */
+  const deleteEmployee = async (employeeId) => {
+    if (!window.confirm("Are you sure you want to deactivate this employee?"))
+      return;
 
-    const token = localStorage.getItem("token");
+    setActionLoading(true);
+    try {
+      const token = localStorage.getItem("token");
 
-    const res = await fetch(`http://localhost:5000/api/employees/${id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` }
-    });
+      const res = await fetch(
+        `http://localhost:5000/api/employee/${employeeId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
 
-    if (res.ok) {
-      alert("Employee Deleted Successfully");
+      if (!res.ok) throw new Error();
+
+      alert("Employee deactivated successfully");
       loadEmployees();
-    } else {
-      alert("Delete failed");
+    } catch {
+      alert("Deactivate failed");
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  // ▶ Status Badge
-  const statusLabel = (s) => {
-    switch (s) {
-      case "first_login_pending": return { text: "Pending", cls: "status-pending" };
-      case "active": return { text: "Active", cls: "status-active" };
-      case "inactive": return { text: "Inactive", cls: "status-inactive" };
-      case "on_leave": return { text: "On Leave", cls: "status-leave" };
-      default: return { text: s, cls: "" };
+  /* ================= HARD DELETE ================= */
+  const hardDeleteEmployee = async (employeeId) => {
+    if (
+      !window.confirm(
+        "This will permanently delete the employee. This action cannot be undone. Continue?"
+      )
+    )
+      return;
+
+    setActionLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+
+      const res = await fetch(
+        `http://localhost:5000/api/employee/hard/${employeeId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      if (!res.ok) throw new Error();
+
+      alert("Employee permanently deleted");
+      loadEmployees();
+    } catch {
+      alert("Permanent delete failed");
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  // ▶ Search Filter
-  const filteredEmployees = employees.filter(e =>
-    e.name?.toLowerCase().includes(search.toLowerCase()) ||
-    e.employeeId?.toLowerCase().includes(search.toLowerCase()) ||
-    e.email?.toLowerCase().includes(search.toLowerCase())
+  /* ================= SEARCH ================= */
+  const filteredEmployees = employees.filter(
+    (emp) =>
+      emp.name?.toLowerCase().includes(search.toLowerCase()) ||
+      emp.employeeId?.toLowerCase().includes(search.toLowerCase()) ||
+      emp.email?.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <div className="employee-page">
-
       <h2 className="page-title">Employee List</h2>
 
       <div className="filters-row">
@@ -97,7 +132,17 @@ const Employee = () => {
           onChange={(e) => setSearch(e.target.value)}
         />
 
+        <label>
+          <input
+            type="checkbox"
+            checked={showInactive}
+            onChange={(e) => setShowInactive(e.target.checked)}
+          />
+          Show Inactive Employees
+        </label>
+
         <button
+          type="button"
           className="add-btn"
           onClick={() => navigate("/app/employees/add")}
         >
@@ -106,63 +151,82 @@ const Employee = () => {
       </div>
 
       <div className="employee-card">
-        <table className="employee-table">
-          <thead>
-            <tr>
-              <th></th>
-              <th>Employee ID</th>
-              <th>Name</th>
-              <th>Department</th>
-              <th>Role</th>
-              <th>Email</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
+        {loading ? (
+          <p style={{ padding: 20 }}>Loading employees...</p>
+        ) : filteredEmployees.length === 0 ? (
+          <p style={{ padding: 20 }}>No employees found.</p>
+        ) : (
+          <table className="employee-table">
+            <thead>
+              <tr>
+                <th>Employee ID</th>
+                <th>Name</th>
+                <th>Department</th>
+                <th>Role</th>
+                <th>Email</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
 
-          <tbody>
-            {filteredEmployees.map(emp => {
-              const s = statusLabel(emp.status);
-
-              return (
-                <tr key={emp._id}>
-                  <td><input type="checkbox" /></td>
-
+            <tbody>
+              {filteredEmployees.map((emp) => (
+                <tr key={emp.employeeId}>
                   <td>{emp.employeeId}</td>
                   <td>{emp.name}</td>
                   <td>{emp.department}</td>
                   <td>{emp.role}</td>
                   <td>{emp.email}</td>
-
                   <td>
-                    <span className={`status-badge ${s.cls}`}>{s.text}</span>
+                    <span className={`status-${emp.status?.toLowerCase()}`}>
+                      {emp.status}
+                    </span>
                   </td>
 
-                  <td>
-                    <div className="action-buttons">
-                      <button
-                        className="btn-edit"
-                        onClick={() =>
-                          navigate(`/app/employees/edit/${emp._id}`)
-                        }
-                      >
-                        ✏ Edit
-                      </button>
+                  <td className="action-cell">
+                    {/* EDIT */}
+                    <button
+                      type="button"
+                      className="icon-btn edit"
+                      title="Edit Employee"
+                      onClick={() =>
+                        navigate(`/app/employees/edit/${emp.employeeId}`)
+                      }
+                    >
+                      ✏️
+                    </button>
 
+                    {/* DEACTIVATE */}
+                    {emp.status === "Active" && (
                       <button
-                        className="btn-delete"
-                        onClick={() => deleteEmployee(emp._id)}
+                        type="button"
+                        className="icon-btn delete"
+                        title="Deactivate Employee"
+                        disabled={actionLoading}
+                        onClick={() => deleteEmployee(emp.employeeId)}
                       >
-                        🗑 Delete
+                        🗑
                       </button>
-                    </div>
+                    )}
+
+                    {/* HARD DELETE */}
+                    {emp.status === "Inactive" && (
+                      <button
+                        type="button"
+                        className="icon-btn danger"
+                        title="Delete Permanently"
+                        disabled={actionLoading}
+                        onClick={() => hardDeleteEmployee(emp.employeeId)}
+                      >
+                        ❌
+                      </button>
+                    )}
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-
-        </table>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

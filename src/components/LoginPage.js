@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import EmployeeDashboard from "./EmployeeDashboard";
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -12,15 +11,16 @@ const LoginPage = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
 
+    const url =
+      activeTab === "admin"
+        ? "http://localhost:5000/api/admin/login"
+        : "http://localhost:5000/api/employee-auth/login";
+
     try {
-      const res = await fetch("http://localhost:5000/api/auth/login", {
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          password,
-          role: activeTab
-        })
+        body: JSON.stringify({ email, password })
       });
 
       const data = await res.json();
@@ -30,21 +30,26 @@ const LoginPage = () => {
         return;
       }
 
+      // ✅ normalize role
+      const role = data.role?.toLowerCase();
+
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
-      localStorage.setItem("role", data.role);
+      localStorage.setItem("role", role);
 
       alert("Login Success 🎉");
 
-      if (data.role === "admin") {
-        navigate("/app/employees");
+      if (role === "admin") {
+        navigate("/app/employees", { replace: true });
+      } else if (role === "employee") {
+        navigate("/app/employee-dashboard", { replace: true });
       } else {
-        navigate("/app/employee-dashboard");
+        alert("Invalid role received from server");
       }
 
     } catch (err) {
-      alert("Server Error — backend not reachable");
       console.error(err);
+      alert("Server error — backend not reachable");
     }
   };
 
@@ -52,7 +57,7 @@ const LoginPage = () => {
     <div className="login-wrapper">
       <div className="login-card">
 
-        {/* ⭐ ADDED LOGO ABOVE TITLE ⭐ */}
+        {/* Logo */}
         {(() => {
           try {
             const imageSrc = new URL("../assets/glisten.png", import.meta.url).href;
@@ -60,19 +65,23 @@ const LoginPage = () => {
               <img
                 src={imageSrc}
                 alt="Glisten Software"
-                style={{ height: 140, marginBottom: 1 }}
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                style={{ height: 140, marginBottom: 10 }}
+                onError={(e) => (e.currentTarget.style.display = "none")}
               />
             );
-          } catch (e) {
+          } catch {
             return null;
           }
         })()}
 
-        <h2 className="login-title" style={{marginTop:1}}>Login to Glisten Software Pvt Ltd</h2>
+        <h2 className="login-title">
+          Login to Glisten Software Pvt Ltd
+        </h2>
 
+        {/* Role Tabs */}
         <div className="login-tabs">
           <button
+            type="button"
             className={activeTab === "admin" ? "active" : ""}
             onClick={() => setActiveTab("admin")}
           >
@@ -80,6 +89,7 @@ const LoginPage = () => {
           </button>
 
           <button
+            type="button"
             className={activeTab === "employee" ? "active" : ""}
             onClick={() => setActiveTab("employee")}
           >
@@ -87,13 +97,15 @@ const LoginPage = () => {
           </button>
         </div>
 
+        {/* Form */}
         <form className="login-form" onSubmit={handleLogin}>
-          <label>Email / Username</label>
+          <label>Email</label>
           <input
-            type="text"
+            type="email"
             placeholder="john.doe@example.com"
             value={email}
-            onChange={e => setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value)}
+            required
           />
 
           <label>Password</label>
@@ -102,18 +114,27 @@ const LoginPage = () => {
               type="password"
               placeholder="********"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
+              required
             />
             <span className="eye-icon">👁</span>
           </div>
 
-          <div className="remember-forgot">
-            <a href="#" className="forgot-link">Forgot Password?</a>
-          </div>
+          {/* 🔐 FORGOT PASSWORD LINK */}
+          <p
+            style={{
+              textAlign: "right",
+              marginTop: 6,
+              cursor: "pointer",
+              color: "#2563eb",
+              fontSize: 14
+            }}
+            onClick={() => navigate("/forgot-password")}
+          >
+            Forgot Password?
+          </p>
 
           <button className="login-btn">Login</button>
-
-          <a href="#" className="guest-link">Continue as Guest</a>
         </form>
       </div>
     </div>
