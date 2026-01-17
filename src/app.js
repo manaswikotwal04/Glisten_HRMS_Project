@@ -22,13 +22,10 @@ import AddSalaryStructure from "./components/AddSalaryStructure";
 import GeneratePayslip from "./components/GeneratePayslips";
 import PayrollList from "./components/PayrollList";
 import ChangePassword from "./components/changepassword";
-/* 🔥 RESET PASSWORD */
 import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
 
-/* =========================
-   ROLE GUARD
-========================= */
+
 const RequireRole = ({ role, children }) => {
   const userRole = localStorage.getItem("role");
 
@@ -39,9 +36,7 @@ const RequireRole = ({ role, children }) => {
   return children;
 };
 
-/* =========================
-   APP LAYOUT
-========================= */
+
 const AppLayout = () => {
   const role = localStorage.getItem("role");
 
@@ -59,15 +54,13 @@ const AppLayout = () => {
   );
 };
 
-/* =========================
-   ROUTER
-========================= */
+
 const appRouter = createBrowserRouter([
   { path: "/", element: <Navigate to="/login" replace /> },
 
   { path: "/login", element: <LoginPage /> },
 
-  /* PUBLIC PASSWORD ROUTES */
+
   { path: "/forgot-password", element: <ForgotPassword /> },
 
   { path: "/reset-password", element: <ResetPassword /> },
@@ -77,7 +70,7 @@ const appRouter = createBrowserRouter([
     element: <AppLayout />,
     children: [
 
-      /* ===== ADMIN ===== */
+      
 
       {
         path: "employees",
@@ -98,7 +91,7 @@ const appRouter = createBrowserRouter([
       },
 
       {
-        path: "employees/edit/:employeeId", // ✅ CORRECT
+        path: "employees/edit/:employeeId", 
         element: (
           <RequireRole role="admin">
             <EditEmployee />
@@ -164,8 +157,5 @@ const appRouter = createBrowserRouter([
   }
 ]);
 
-/* =========================
-   RENDER
-========================= */
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(<RouterProvider router={appRouter} />);

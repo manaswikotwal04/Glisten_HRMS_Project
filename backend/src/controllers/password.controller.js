@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 
-/* ================= EMAIL CONFIG ================= */
+
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -12,7 +12,7 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-/* ================= CHANGE PASSWORD ================= */
+
 export const changePassword = async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
@@ -44,7 +44,6 @@ export const changePassword = async (req, res) => {
   }
 };
 
-/* ================= FORGOT PASSWORD ================= */
 export const requestPasswordReset = async (req, res) => {
   try {
     const { email } = req.body;

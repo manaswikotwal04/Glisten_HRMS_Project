@@ -66,7 +66,6 @@ const ForgotPassword = () => {
 
 export default ForgotPassword;
 
-/* ================= STYLES ================= */
 const styles = {
   container: {
     minHeight: "100vh",

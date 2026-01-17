@@ -2,7 +2,7 @@ import db from "../config/db.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-/* ================= CREATE ADMIN ================= */
+
 export const createAdmin = async (req, res) => {
   try {
     const { name, email, password } = req.body;

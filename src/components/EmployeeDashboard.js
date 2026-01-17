@@ -8,13 +8,12 @@ const EmployeeDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [showProfile, setShowProfile] = useState(false);
 
-  /* ================= LOGOUT ================= */
+
   const handleLogout = () => {
     localStorage.clear();
     navigate("/login", { replace: true });
   };
 
-  /* ================= RESET PASSWORD ================= */
   const handleResetPassword = () => {
     // simple reset flow (old → new password page)
     navigate("/app/change-password");
@@ -32,7 +31,7 @@ const EmployeeDashboard = () => {
       user = null;
     }
 
-    /* 🔐 AUTH CHECK */
+  
     if (!user || role?.toLowerCase() !== "employee" || !token) {
       alert("Unauthorized access");
       handleLogout();
@@ -45,7 +44,7 @@ const EmployeeDashboard = () => {
       return;
     }
 
-    /* 🔥 FETCH EMPLOYEE DETAILS */
+  
     fetch(`http://localhost:5000/api/employee/id/${user.employeeId}`, {
       headers: {
         Authorization: `Bearer ${token}`
@@ -142,7 +141,6 @@ const EmployeeDashboard = () => {
   );
 };
 
-/* ================= SMALL COMPONENTS ================= */
 
 const DashBox = ({ title, value }) => (
   <div className="dash-box">

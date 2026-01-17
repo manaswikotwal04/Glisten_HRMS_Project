@@ -1,6 +1,5 @@
 import jwt from "jsonwebtoken";
 
-/* ================= ADMIN ONLY ================= */
 export const adminAuth = (req, res, next) => {
   const header = req.headers.authorization;
 
@@ -23,7 +22,7 @@ export const adminAuth = (req, res, next) => {
   }
 };
 
-/* ================= EMPLOYEE (LOGGED IN) ================= */
+
 export const auth = (req, res, next) => {
   const header = req.headers.authorization;
 

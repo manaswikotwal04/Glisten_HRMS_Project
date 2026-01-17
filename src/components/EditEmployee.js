@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 const EditEmployee = () => {
-  const { employeeId } = useParams(); // ✅ MUST be employeeId
+  const { employeeId } = useParams(); 
   const navigate = useNavigate();
 
 
@@ -26,9 +26,8 @@ const EditEmployee = () => {
     location: ""
   });
 
-  /* ================= LOAD EMPLOYEE ================= */
   useEffect(() => {
-    if (!employeeId) return; // 🔥 prevent undefined API call
+    if (!employeeId) return; 
 
     const loadEmployee = async () => {
       try {
@@ -77,13 +76,13 @@ const EditEmployee = () => {
     loadEmployee();
   }, [employeeId, navigate]);
 
-  /* ================= HANDLE CHANGE ================= */
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  /* ================= UPDATE ================= */
+
   const handleUpdate = async (e) => {
     e.preventDefault();
 

@@ -12,7 +12,7 @@ const PayrollList = () => {
 
     const data = await res.json();
 
-    // ✅ NORMALIZE BACKEND DATA
+
     const normalized = Array.isArray(data)
       ? data.map(r => ({
           ...r,

@@ -71,7 +71,6 @@ const EmployeePayslips = () => {
   );
 };
 
-/* ================= STYLES ================= */
 
 const page = {
   padding: 30,

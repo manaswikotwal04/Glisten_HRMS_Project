@@ -46,15 +46,13 @@ const AddSalaryStructure = () => {
     effective_from: ""
   });
 
-  /* ================= LOAD EMPLOYEES ================= */
+
   useEffect(() => {
     fetch("http://localhost:5000/api/employee")
       .then(res => res.json())
       .then(setEmployees)
       .catch(console.error);
   }, []);
-
-  /* ================= HANDLE CHANGE ================= */
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (Number(value) < 0) return;
@@ -65,7 +63,7 @@ const AddSalaryStructure = () => {
     }));
   };
 
-  /* ================= LIVE PREVIEW ================= */
+
   const basic = Number(form.basic_salary || 0);
   const pct = (v) => (basic * Number(v || 0)) / 100;
 
@@ -80,7 +78,6 @@ const AddSalaryStructure = () => {
     cess: Number(form.cess_amt || 0)
   };
 
-  /* ================= SUBMIT ================= */
   const submit = async (e) => {
     e.preventDefault();
 
@@ -146,7 +143,6 @@ const AddSalaryStructure = () => {
     }
   };
 
-  /* ================= UI ================= */
   return (
     <div className="add-salary-scroll">
       <form onSubmit={submit} style={{ maxWidth: 720, margin: "auto" }}>

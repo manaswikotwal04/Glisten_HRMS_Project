@@ -10,7 +10,7 @@ const Employee = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
-  /* ================= LOAD EMPLOYEES ================= */
+
   const loadEmployees = async () => {
     setLoading(true);
     try {
@@ -49,7 +49,6 @@ const Employee = () => {
 
   useEffect(() => {
     loadEmployees();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInactive]);
 
   /* ================= SOFT DELETE ================= */
@@ -80,7 +79,7 @@ const Employee = () => {
     }
   };
 
-  /* ================= HARD DELETE ================= */
+
   const hardDeleteEmployee = async (employeeId) => {
     if (
       !window.confirm(
@@ -209,7 +208,7 @@ const Employee = () => {
                       </button>
                     )}
 
-                    {/* HARD DELETE */}
+                  
                     {emp.status === "Inactive" && (
                       <button
                         type="button"

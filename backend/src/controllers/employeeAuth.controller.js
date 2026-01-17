@@ -26,19 +26,18 @@ export const employeeLogin = async (req, res) => {
       {
         id: employee.id,
         role: "employee",
-        employeeId: employee.employeeId // optional in token
+        employeeId: employee.employeeId 
       },
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
 
-    // ✅ FINAL FIXED RESPONSE
     res.status(200).json({
       token,
       role: "employee",
       user: {
-        id: employee.id,                 // DB id
-        employeeId: employee.employeeId, // 🔥 REQUIRED
+        id: employee.id,                 
+        employeeId: employee.employeeId, 
         name: employee.name,
         email: employee.email
       }

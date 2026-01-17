@@ -78,7 +78,7 @@ const LoginPage = () => {
           Login to Glisten Software Pvt Ltd
         </h2>
 
-        {/* Role Tabs */}
+      
         <div className="login-tabs">
           <button
             type="button"
@@ -120,7 +120,7 @@ const LoginPage = () => {
             <span className="eye-icon">👁</span>
           </div>
 
-          {/* 🔐 FORGOT PASSWORD LINK */}
+      
           <p
             style={{
               textAlign: "right",

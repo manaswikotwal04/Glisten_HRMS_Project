@@ -47,11 +47,11 @@ const isStrongPassword = (password) => {
   );
 };
 
-  /* ================= SUBMIT ================= */
+  
   const handleSubmit = async (e) => {
   e.preventDefault();
 
-  // 🔐 PASSWORD STRENGTH CHECK (ADDED)
+  
   if (
     formData.password.length < 8 ||
     !/[A-Z]/.test(formData.password) ||
@@ -68,7 +68,7 @@ const isStrongPassword = (password) => {
   setLoading(true);
 
   try {
-    // 🔥 MAP FRONTEND → BACKEND FIELD NAMES
+  
     const payload = {
       ...formData,
       accountNumber: formData.accountNo,
@@ -120,7 +120,6 @@ const isStrongPassword = (password) => {
 
         <form className="form-grid" onSubmit={handleSubmit}>
 
-          {/* BASIC DETAILS */}
           <div className="form-field">
             <label>Employee Name</label>
             <input name="name" value={formData.name} onChange={handleChange} required />

@@ -9,7 +9,6 @@ import salaryRoutes from "./routes/salary.routes.js";
 import salarySlipRoutes from "./routes/salarySlip.routes.js";
 import salaryStructureRoutes from "./routes/salarystructure.routes.js";
 
-// ✅ AUTH ROUTES (MYSQL BASED)
 import adminRoutes from "./routes/admin.routes.js";
 import employeeAuthRoutes from "./routes/employeeAuth.routes.js";
 
@@ -26,12 +25,10 @@ app.get("/test", (req, res) => {
 });
 app.use("/payslips", express.static(path.join(process.cwd(), "payslips")));
 
-/* 🔐 AUTH ROUTES */
-app.use("/api/admin", adminRoutes);              // admin login
-app.use("/api/employee-auth", employeeAuthRoutes); // employee login
 
+app.use("/api/admin", adminRoutes);             
+app.use("/api/employee-auth", employeeAuthRoutes); 
 
-/* 🔥 CORE MODULE ROUTES */
 app.use("/api/employee", employeeRoutes);
 app.use("/api/salary", salaryRoutes);
 app.use("/api/salary-slip", salarySlipRoutes);
@@ -39,7 +36,7 @@ import passwordRoutes from "./routes/password.routes.js";
 
 app.use("/api/password", passwordRoutes);
 app.use("/api/salary-structure", salaryStructureRoutes);
-/* 📄 STATIC PAYSLIPS */
+
 app.use("/payslips", express.static("payslips"));
 
 const PORT = process.env.PORT || 5000;

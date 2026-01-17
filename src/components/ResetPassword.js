@@ -11,7 +11,7 @@ const ResetPassword = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  /* ================= AUTO READ TOKEN ================= */
+
   useEffect(() => {
     const urlToken = searchParams.get("token");
     if (urlToken) {

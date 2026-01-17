@@ -6,7 +6,6 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const role = localStorage.getItem("role"); // admin | employee
 
-  // ✅ read employeeId safely
   let employeeId = null;
   try {
     const user = JSON.parse(localStorage.getItem("user"));
@@ -38,7 +37,7 @@ const Sidebar = () => {
       {/* MENU */}
       <div className="menu">
 
-        {/* ================= ADMIN ================= */}
+      
         {role === "admin" && (
           <>
             <Link to="/app/employees" className="menu-item">
@@ -57,7 +56,6 @@ const Sidebar = () => {
               Payroll List
             </Link>
 
-            {/* ✅ LOGOUT AFTER PAYROLL LIST */}
             <button
               type="button"
               className="menu-item logout-btn"
@@ -68,7 +66,7 @@ const Sidebar = () => {
           </>
         )}
 
-        {/* ================= EMPLOYEE ================= */}
+      
         {role === "employee" && (
           <>
             <Link to="/app/employee-dashboard" className="menu-item">
@@ -84,7 +82,7 @@ const Sidebar = () => {
               </Link>
             )}
 
-            {/* ✅ LOGOUT FOR EMPLOYEE */}
+  
             <button
               type="button"
               className="menu-item logout-btn"

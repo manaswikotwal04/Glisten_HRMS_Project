@@ -6,10 +6,9 @@ import {
 
 const router = express.Router();
 
-/* ADD SALARY STRUCTURE */
 router.post("/", addSalaryStructure);
 
-/* GET SALARY HISTORY */
+
 router.get("/:employeeId", getSalaryHistory);
 
 export default router;

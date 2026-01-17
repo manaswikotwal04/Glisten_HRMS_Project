@@ -1,8 +1,5 @@
 import db from "../config/db.js";
 
-/* ===============================
-   ADD SALARY STRUCTURE
-================================ */
 export const addSalaryStructure = async (req, res) => {
   try {
     const {
@@ -15,7 +12,7 @@ export const addSalaryStructure = async (req, res) => {
       cca_pct,
       pb_pct,
 
-      // fixed monthly amounts (NOT %)
+    
       pt_amt,
       it_amt,
       cess_amt,
@@ -55,7 +52,7 @@ export const addSalaryStructure = async (req, res) => {
         Number(cca_pct || 0),
         Number(pb_pct || 0),
 
-        // 🔥 store AMOUNTS in *_pct columns
+  
         Number(pt_amt || 0),
         Number(it_amt || 0),
         Number(cess_amt || 0),
@@ -74,9 +71,6 @@ export const addSalaryStructure = async (req, res) => {
   }
 };
 
-/* ===============================
-   GET SALARY HISTORY
-================================ */
 export const getSalaryHistory = async (req, res) => {
   try {
     const { employeeId } = req.params;

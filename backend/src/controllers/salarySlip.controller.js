@@ -3,7 +3,6 @@ import db from "../config/db.js";
 import fs from "fs";
 import path from "path";
 
-/* ================= HELPERS ================= */
 const getSalaryForMonth = (structures, date) => {
   const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
   return structures
@@ -11,7 +10,6 @@ const getSalaryForMonth = (structures, date) => {
     .slice(-1)[0];
 };
 
-/* ================= GENERATE PAYSLIP ================= */
 export const generateSalarySlip = async (req, res) => {
   let doc;
 
@@ -27,7 +25,7 @@ export const generateSalarySlip = async (req, res) => {
     const toDate = new Date(`${toMonth}-01`);
     const fromMonthName = fromDate.toLocaleString("default", { month: "long" });
 
-    /* ================= EMPLOYEE ================= */
+    
     const [[employee]] = await db.query(
       `SELECT employeeId, name, department, role, bankName, accountNumber, panNumber
        FROM employee WHERE employeeId = ?`,
@@ -35,7 +33,7 @@ export const generateSalarySlip = async (req, res) => {
     );
     if (!employee) return res.status(404).json({ message: "Employee not found" });
 
-    /* ================= SALARY STRUCTURE ================= */
+
     const [structures] = await db.query(
       `SELECT * FROM salary_structure
        WHERE employeeId = ?
@@ -45,7 +43,7 @@ export const generateSalarySlip = async (req, res) => {
     if (!structures.length)
       return res.status(404).json({ message: "Salary structure not found" });
 
-    /* ================= COMPONENT TOTALS ================= */
+  
     let basicCM=0,hraCM=0,pdCM=0,saCM=0,ccaCM=0,pbCM=0,bonusCM=0;
     let basicATD=0,hraATD=0,pdATD=0,saATD=0,ccaATD=0,pbATD=0,bonusATD=0;
 
@@ -119,7 +117,7 @@ export const generateSalarySlip = async (req, res) => {
     const deductionCM = ptCM+itCM+cessCM;
     const deductionATD = ptATD+itATD+cessATD;
     const netSalary = grossATD - deductionATD + variableBonusATD;
-    /* ================= PAYROLL INSERT (MANDATORY) ================= */
+  
 const pdfPath = `payslips/${employeeId}-${fromMonth}-to-${toMonth}.pdf`;
 
 const [payrollResult] = await db.query(
@@ -148,10 +146,7 @@ const [payrollResult] = await db.query(
   ]
 );
 
-const payrollId = payrollResult.insertId; // ✅ THIS IS THE ID
-
-
-/* ================= PDF ================= */
+const payrollId = payrollResult.insertId; 
 
 fs.mkdirSync("payslips", { recursive: true });
 
@@ -166,7 +161,6 @@ doc.pipe(fs.createWriteStream(pdfPath));
 doc.pipe(res);
 
 
-/* ================= HEADER ================= */
 const logoPath = path.join(process.cwd(), "payslips", "logo.png");
 if (fs.existsSync(logoPath)) {
   doc.image(logoPath, 40, 35, { width: 60 });
@@ -185,7 +179,6 @@ doc
 
 doc.moveDown(1.5);
 
-/* ================= EMPLOYEE INFO ================= */
 let y = doc.y;
 const lh = 15;
 
