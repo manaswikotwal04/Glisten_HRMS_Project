@@ -8,7 +8,7 @@ import employeeRoutes from "./routes/employee.routes.js";
 import salaryRoutes from "./routes/salary.routes.js";
 import salarySlipRoutes from "./routes/salarySlip.routes.js";
 import salaryStructureRoutes from "./routes/salarystructure.routes.js";
-
+import leaveRoutes from "./routes/leave.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import employeeAuthRoutes from "./routes/employeeAuth.routes.js";
 
@@ -38,6 +38,7 @@ app.use("/api/password", passwordRoutes);
 app.use("/api/salary-structure", salaryStructureRoutes);
 
 app.use("/payslips", express.static("payslips"));
+app.use("/api/leave", leaveRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

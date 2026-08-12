@@ -13,7 +13,7 @@ const ChangePassword = () => {
     e.preventDefault();
 
     if (newPassword !== confirmPassword) {
-      alert("Passwords do not match");
+      console.warn("Passwords do not match");
       return;
     }
 
@@ -40,16 +40,16 @@ const ChangePassword = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.message || "Failed to change password");
+        console.warn(data.message || "Failed to change password");
         return;
       }
 
-      alert("Password changed successfully. Please login again.");
+      console.warn("Password changed successfully. Please login again.");
       localStorage.clear();
       navigate("/login");
 
     } catch (err) {
-      alert("Server error");
+      console.warn("Server error");
     } finally {
       setLoading(false);
     }
@@ -104,3 +104,4 @@ const ChangePassword = () => {
 };
 
 export default ChangePassword;
+

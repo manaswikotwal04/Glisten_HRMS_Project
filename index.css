@@ -39,14 +39,28 @@
   font-weight: 500;
   color: #111827;
 }
+.logo-link {
+  display: block;
+  text-decoration: none;
+}
+
 .logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  margin-bottom: 14px;
+  margin-bottom: 20px;
+  padding: 15px 0;
+  border-bottom: 1px solid #e5e7eb;
+  min-height: 100px;
 }
 
 .logo img {
-  width: 110px;   
-  height: auto;
+  width: 140px;
+  height: 60px;
+  object-fit: contain;
+  display: block;
 }
 .app-layout {
   display: flex;
@@ -210,6 +224,17 @@
 
 .upload-icon {
   font-size: 26px;
+}
+.dashboard-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.dashboard-actions button {
+  margin: 0;
 }
 
 .form-actions {

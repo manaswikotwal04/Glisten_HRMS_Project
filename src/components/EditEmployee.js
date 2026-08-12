@@ -41,7 +41,7 @@ const EditEmployee = () => {
         });
 
         if (!res.ok) {
-          alert("Failed to load employee");
+          console.warn("Failed to load employee");
           return;
         }
 
@@ -69,7 +69,7 @@ const EditEmployee = () => {
 
       } catch (err) {
         console.error("Load employee error:", err);
-        alert("Network error");
+        console.warn("Network error");
       }
     };
 
@@ -113,11 +113,11 @@ const EditEmployee = () => {
     );
 
     if (!res.ok) {
-      alert("Update failed");
+      console.warn("Update failed");
       return;
     }
 
-    alert("Employee Updated Successfully 🎉");
+    console.warn("Employee Updated Successfully 🎉");
     navigate("/app/employees");
   };
 
@@ -237,3 +237,4 @@ const EditEmployee = () => {
 };
 
 export default EditEmployee;
+

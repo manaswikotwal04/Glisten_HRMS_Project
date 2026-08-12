@@ -23,12 +23,12 @@ const ResetPassword = () => {
     e.preventDefault();
 
     if (newPassword !== confirmPassword) {
-      alert("Passwords do not match");
+      console.warn("Passwords do not match");
       return;
     }
 
     if (!token) {
-      alert("Reset token is missing");
+      console.warn("Reset token is missing");
       return;
     }
 
@@ -47,15 +47,15 @@ const ResetPassword = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.message || "Reset failed");
+        console.warn(data.message || "Reset failed");
         return;
       }
 
-      alert("Password reset successful 🎉");
+      console.warn("Password reset successful 🎉");
       navigate("/login");
 
     } catch (err) {
-      alert("Server error. Please try again.");
+      console.warn("Server error. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -135,3 +135,4 @@ const ResetPassword = () => {
 };
 
 export default ResetPassword;
+

@@ -24,15 +24,15 @@ const ForgotPassword = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.message || "Failed to send reset email");
+        console.warn(data.message || "Failed to send reset email");
         return;
       }
 
-      alert("Password reset link sent to your email 📧");
+      console.warn("Password reset link sent to your email 📧");
       navigate("/login");
 
     } catch (err) {
-      alert("Server error. Please try again.");
+      console.warn("Server error. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -111,3 +111,4 @@ const styles = {
     fontSize: 14
   }
 };
+

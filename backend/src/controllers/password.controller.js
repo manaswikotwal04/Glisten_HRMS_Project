@@ -47,23 +47,58 @@ export const changePassword = async (req, res) => {
 export const requestPasswordReset = async (req, res) => {
   try {
     const { email } = req.body;
-
-    const [[user]] = await db.query(
-      "SELECT employeeId FROM employee WHERE email = ?",
-      [email]
-    );
-
-    if (!user) {
-      return res.status(404).json({ message: "Email not found" });
-    }
+    // First check if email belongs to an admin
+    const [adminRows] = await db.query("SELECT id FROM admins WHERE email = ?", [email]);
 
     const token = crypto.randomBytes(32).toString("hex");
     const expiry = new Date(Date.now() + 15 * 60 * 1000);
 
-    await db.query(
-      "UPDATE employee SET resetToken = ?, resetTokenExpiry = ? WHERE email = ?",
-      [token, expiry, email]
-    );
+    if (adminRows.length > 0) {
+      const admin = adminRows[0];
+
+      // Ensure admin table has reset columns (safer check across MySQL versions)
+      try {
+        const [cols] = await db.query(
+          `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+           WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'admins'
+           AND COLUMN_NAME IN ('resetToken','resetTokenExpiry')`,
+          [process.env.DB_NAME]
+        );
+
+        const hasResetToken = cols.some((c) => c.COLUMN_NAME === "resetToken");
+        const hasResetTokenExpiry = cols.some((c) => c.COLUMN_NAME === "resetTokenExpiry");
+
+        if (!hasResetToken) {
+          await db.query("ALTER TABLE admins ADD COLUMN resetToken VARCHAR(255)");
+        }
+        if (!hasResetTokenExpiry) {
+          await db.query("ALTER TABLE admins ADD COLUMN resetTokenExpiry DATETIME");
+        }
+      } catch (err) {
+        // ignore schema-check errors
+      }
+
+      await db.query(
+        "UPDATE admins SET resetToken = ?, resetTokenExpiry = ? WHERE email = ?",
+        [token, expiry, email]
+      );
+
+    } else {
+      // Fallback to employee table
+      const [[user]] = await db.query(
+        "SELECT employeeId FROM employee WHERE email = ?",
+        [email]
+      );
+
+      if (!user) {
+        return res.status(404).json({ message: "Email not found" });
+      }
+
+      await db.query(
+        "UPDATE employee SET resetToken = ?, resetTokenExpiry = ? WHERE email = ?",
+        [token, expiry, email]
+      );
+    }
 
     /* ===== SEND EMAIL ===== */
     const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
@@ -102,7 +137,25 @@ export const requestPasswordReset = async (req, res) => {
 export const resetPassword = async (req, res) => {
   try {
     const { token, newPassword } = req.body;
+    // Try admins first
+    const [adminRows] = await db.query(
+      `SELECT id FROM admins WHERE resetToken = ? AND resetTokenExpiry > NOW()`,
+      [token]
+    );
 
+    if (adminRows.length > 0) {
+      const admin = adminRows[0];
+      const hashed = await bcrypt.hash(newPassword, 10);
+
+      await db.query(
+        `UPDATE admins SET password = ?, resetToken = NULL, resetTokenExpiry = NULL WHERE id = ?`,
+        [hashed, admin.id]
+      );
+
+      return res.json({ message: "Password reset successful" });
+    }
+
+    // Fallback to employee
     const [[user]] = await db.query(
       `SELECT employeeId FROM employee
        WHERE resetToken = ? AND resetTokenExpiry > NOW()`,

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 
-/* MONTH LIST (DATA ONLY, NOT LOGIC) */
+/* ================= MONTH LIST ================= */
+
 const MONTHS = [
   { name: "Jan", value: 1 },
   { name: "Feb", value: 2 },
@@ -16,190 +17,800 @@ const MONTHS = [
   { name: "Dec", value: 12 }
 ];
 
-/* 🔹 GENERIC MONTH RANGE CHECK */
-const isMonthInRange = (month, from, to) => {
-  if (from <= to) return month >= from && month <= to;
-  return month >= from || month <= to;
-};
+/* ================= EMPTY BONUS OBJECT ================= */
+
+const getEmptyBonuses = () => ({
+  1: "",
+  2: "",
+  3: "",
+  4: "",
+  5: "",
+  6: "",
+  7: "",
+  8: "",
+  9: "",
+  10: "",
+  11: "",
+  12: ""
+});
+
+/* ================= COMPONENT ================= */
 
 const GeneratePayslip = () => {
+
   const [employees, setEmployees] = useState([]);
+
   const [employeeId, setEmployeeId] = useState("");
+
   const [fromMonth, setFromMonth] = useState("");
+
   const [toMonth, setToMonth] = useState("");
+
   const [loading, setLoading] = useState(false);
 
-  const [variableBonuses, setVariableBonuses] = useState([
-    { amount: "", months: [] }
-  ]);
+  /* ================= DEFAULT BONUS ================= */
 
-  /* LOAD EMPLOYEES */
+  const [defaultBonus, setDefaultBonus] = useState("");
+
+  /* ================= MONTHLY BONUSES ================= */
+
+  const [monthlyBonuses, setMonthlyBonuses] =
+    useState(getEmptyBonuses());
+
+
+  /* ================= LOAD EMPLOYEES ================= */
+
   useEffect(() => {
-    const token = localStorage.getItem("token");
 
-    fetch("http://localhost:5000/api/employee", {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(setEmployees)
-      .catch(console.error);
+    const token =
+      localStorage.getItem("token");
+
+    fetch(
+      "http://localhost:5000/api/employee",
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    )
+      .then((res) => {
+
+        if (!res.ok) {
+          throw new Error(
+            "Failed to fetch employees"
+          );
+        }
+
+        return res.json();
+      })
+      .then((data) => {
+
+        setEmployees(
+          Array.isArray(data)
+            ? data
+            : []
+        );
+
+      })
+      .catch((error) => {
+
+        console.error(
+          "Employee fetch error:",
+          error
+        );
+
+      });
+
   }, []);
 
-  /* BONUS ROW HANDLERS */
-  const addBonusRow = () =>
-    setVariableBonuses([...variableBonuses, { amount: "", months: [] }]);
 
-  const removeBonusRow = (index) =>
-    setVariableBonuses(variableBonuses.filter((_, i) => i !== index));
+  /* ================= RESET BONUS ================= */
 
-  const updateAmount = (index, value) => {
-    const copy = [...variableBonuses];
-    copy[index].amount = value;
-    setVariableBonuses(copy);
+  const resetBonuses = () => {
+
+    setDefaultBonus("");
+
+    setMonthlyBonuses(
+      getEmptyBonuses()
+    );
   };
 
-  const toggleMonth = (index, month) => {
-    const copy = [...variableBonuses];
-    copy[index].months = copy[index].months.includes(month)
-      ? copy[index].months.filter(m => m !== month)
-      : [...copy[index].months, month];
-    setVariableBonuses(copy);
+
+  /* ================= UPDATE MONTH ================= */
+
+  const updateMonthlyBonus = (
+    month,
+    value
+  ) => {
+
+    /*
+     * Only update the selected month.
+     *
+     * This means:
+     *
+     * Jan = 500
+     * Feb = 500
+     * Mar = 700
+     *
+     * Changing Mar will NOT change
+     * Jan or Feb.
+     */
+
+    setMonthlyBonuses((prev) => ({
+      ...prev,
+      [month]: value
+    }));
+
   };
 
-  /* VARIABLE BONUS PREVIEW */
-  const calculateVariableBonus = () => {
-    if (!fromMonth || !toMonth) return 0;
 
-    const from = Number(fromMonth.split("-")[1]);
-    const to = Number(toMonth.split("-")[1]);
+  /* ================= APPLY DEFAULT BONUS ================= */
 
-    return variableBonuses.reduce((total, bonus) => {
-      const amt = Number(bonus.amount || 0);
-      const applicableMonths = bonus.months.filter(m =>
-        isMonthInRange(m, from, to)
+  const applyDefaultBonus = () => {
+
+    if (
+      defaultBonus === "" ||
+      Number(defaultBonus) < 0
+    ) {
+
+      alert(
+        "Please enter a valid bonus amount"
       );
-      return total + applicableMonths.length * amt;
-    }, 0);
-  };
 
-  /* GENERATE PAYSLIP */
-  const generatePayslip = async () => {
-  if (!employeeId || !fromMonth || !toMonth) {
-    alert("Please select employee and month range");
-    return;
-  }
+      return;
+    }
 
-  setLoading(true);
 
-  try {
-    const token = localStorage.getItem("token");
+    const updated = {};
 
-    // ✅ SEND EVERYTHING IN BODY (FIX)
-    const payload = {
-      employeeId,
-      fromMonth,
-      toMonth,
-      variableBonuses: variableBonuses.map(b => ({
-        amount: Number(b.amount || 0),
-        months: b.months
-      }))
-    };
+    MONTHS.forEach((month) => {
 
-    const res = await fetch(
-      "http://localhost:5000/api/salary-slip/generate",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      }
+      updated[month.value] =
+        defaultBonus;
+
+    });
+
+
+    setMonthlyBonuses(
+      updated
     );
 
-    if (!res.ok) throw new Error();
+  };
 
-    const blob = await res.blob();
-    const url = window.URL.createObjectURL(blob);
 
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${employeeId}-${fromMonth}-to-${toMonth}.pdf`;
-    a.click();
+  /* ================= TOTAL BONUS ================= */
 
-    window.URL.revokeObjectURL(url);
-  } catch (err) {
-    alert("Payslip generation failed");
-  } finally {
-    setLoading(false);
-  }
-};
+  const calculateVariableBonus = () => {
+
+    return Object.values(
+      monthlyBonuses
+    ).reduce(
+      (total, amount) => {
+
+        return (
+          total +
+          Number(amount || 0)
+        );
+
+      },
+      0
+    );
+
+  };
+
+
+  /* ================= GENERATE PAYSLIP ================= */
+
+  const generatePayslip = async () => {
+
+    if (
+      !employeeId ||
+      !fromMonth ||
+      !toMonth
+    ) {
+
+      alert(
+        "Please select employee and month range"
+      );
+
+      return;
+    }
+
+
+    if (
+      fromMonth > toMonth
+    ) {
+
+      alert(
+        "From Month cannot be after To Month"
+      );
+
+      return;
+    }
+
+
+    setLoading(true);
+
+
+    try {
+
+      const token =
+        localStorage.getItem("token");
+
+
+      /* ================= BONUS DATA ================= */
+
+      const variableBonuses =
+        MONTHS
+          .map((month) => ({
+            month: month.value,
+
+            amount: Number(
+              monthlyBonuses[
+                month.value
+              ] || 0
+            )
+          }))
+          .filter(
+            (bonus) =>
+              bonus.amount > 0
+          );
+
+
+      /* ================= PAYLOAD ================= */
+
+      const payload = {
+
+        employeeId,
+
+        fromMonth,
+
+        toMonth,
+
+        variableBonuses
+
+      };
+
+
+      console.log(
+        "PAYSLIP PAYLOAD:",
+        payload
+      );
+
+
+      /* ================= API ================= */
+
+      const res = await fetch(
+        "http://localhost:5000/api/salary-slip/generate",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+
+            Authorization:
+              `Bearer ${token}`
+          },
+
+          body:
+            JSON.stringify(payload)
+        }
+      );
+
+
+      /* ================= ERROR ================= */
+
+      if (!res.ok) {
+
+        let errorData = {};
+
+        try {
+
+          errorData =
+            await res.json();
+
+        } catch {
+
+          errorData = {};
+
+        }
+
+
+        throw new Error(
+          errorData.message ||
+          "Payslip generation failed"
+        );
+
+      }
+
+
+      /* ================= PDF ================= */
+
+      const blob =
+        await res.blob();
+
+
+      const url =
+        window.URL.createObjectURL(
+          blob
+        );
+
+
+      const a =
+        document.createElement("a");
+
+
+      a.href = url;
+
+
+      a.download =
+        `${employeeId}-${fromMonth}-to-${toMonth}.pdf`;
+
+
+      document.body.appendChild(a);
+
+
+      a.click();
+
+
+      a.remove();
+
+
+      window.URL.revokeObjectURL(
+        url
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        "Payslip generation failed:",
+        error
+      );
+
+
+      alert(
+        error.message ||
+        "Failed to generate payslip"
+      );
+
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
+  };
+
+
+  /* ================= UI ================= */
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>Generate Payslip</h2>
 
-      <label>Employee</label><br />
-      <select value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
-        <option value="">Select Employee</option>
-        {employees.map(emp => (
-          <option key={emp.employeeId} value={emp.employeeId}>
-            {emp.employeeId} - {emp.name}
-          </option>
-        ))}
-      </select>
+    <div
+      style={{
+        width: "100%",
+        minHeight: "100vh",
+        padding: "30px",
+        boxSizing: "border-box",
+        background: "#f8fafc"
+      }}
+    >
 
-      <br /><br />
+      <div
+        className="add-employee-card"
+        style={{
+          width: "100%",
+          maxWidth: "none",
+          margin: 0,
+          boxSizing: "border-box"
+        }}
+      >
 
-      <label>From Month</label><br />
-      <input type="month" value={fromMonth} onChange={e => setFromMonth(e.target.value)} />
+        {/* ================= HEADER ================= */}
 
-      <br /><br />
+        <h2>
+          Generate Payslip
+        </h2>
 
-      <label>To Month</label><br />
-      <input type="month" value={toMonth} onChange={e => setToMonth(e.target.value)} />
+        <p className="subtitle">
+          Select an employee and salary
+          period to generate the payslip.
+        </p>
 
-      <hr />
 
-      <h3>Variable Bonus</h3>
+        {/* ================= EMPLOYEE + MONTH ================= */}
 
-      {variableBonuses.map((row, idx) => (
-        <div key={idx} style={{ border: "1px solid #ccc", padding: 8, marginBottom: 10 }}>
-          <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
-            <label>Bonus</label>
+        <div
+          className="form-grid"
+          style={{
+            marginBottom: "25px"
+          }}
+        >
+
+          {/* EMPLOYEE */}
+
+          <div className="form-field">
+
+            <label>
+              Employee
+            </label>
+
+            <select
+              value={employeeId}
+              onChange={(e) => {
+
+                setEmployeeId(
+                  e.target.value
+                );
+
+                resetBonuses();
+
+              }}
+            >
+
+              <option value="">
+                Select Employee
+              </option>
+
+              {employees.map((emp) => (
+
+                <option
+                  key={emp.employeeId}
+                  value={emp.employeeId}
+                >
+                  {emp.employeeId} -{" "}
+                  {emp.name}
+                </option>
+
+              ))}
+
+            </select>
+
+          </div>
+
+
+          {/* FROM MONTH */}
+
+          <div className="form-field">
+
+            <label>
+              From Month
+            </label>
+
             <input
-              type="number"
-              value={row.amount}
-              onChange={e => updateAmount(idx, e.target.value)}
-              style={{ width: 100 }}
+              type="month"
+              value={fromMonth}
+              onChange={(e) =>
+                setFromMonth(
+                  e.target.value
+                )
+              }
             />
-            <button type="button" onClick={addBonusRow}>+</button>
-            {variableBonuses.length > 1 && (
-              <button type="button" onClick={() => removeBonusRow(idx)}>-</button>
-            )}
+
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(45px, auto))", gap: 6 }}>
-            {MONTHS.map(m => (
-              <label key={m.value} style={{ display: "flex", gap: 4 }}>
-                <input
-                  type="checkbox"
-                  checked={row.months.includes(m.value)}
-                  onChange={() => toggleMonth(idx, m.value)}
-                />
-                {m.name}
-              </label>
-            ))}
+
+          {/* TO MONTH */}
+
+          <div className="form-field">
+
+            <label>
+              To Month
+            </label>
+
+            <input
+              type="month"
+              value={toMonth}
+              onChange={(e) =>
+                setToMonth(
+                  e.target.value
+                )
+              }
+            />
+
           </div>
+
         </div>
-      ))}
 
-      <p><strong>Total Variable Bonus:</strong> ₹{calculateVariableBonus()}</p>
 
-      <button onClick={generatePayslip} disabled={loading}>
-        {loading ? "Generating..." : "Generate Payslip"}
-      </button>
+        {/* ================= VARIABLE BONUS CARD ================= */}
+
+        <div
+          style={{
+            marginTop: "25px",
+            padding: "25px",
+            border:
+              "1px solid #e5e7eb",
+            borderRadius: "12px",
+            background: "#ffffff"
+          }}
+        >
+
+          <h3
+            style={{
+              marginTop: 0,
+              marginBottom: "6px"
+            }}
+          >
+            Variable Bonus
+          </h3>
+
+          <p
+            style={{
+              color: "#6b7280",
+              fontSize: "14px",
+              marginTop: 0,
+              marginBottom: "25px"
+            }}
+          >
+            Set a default monthly bonus and
+            then edit individual months if
+            required.
+          </p>
+
+
+          {/* ================= DEFAULT BONUS ================= */}
+
+          <div
+            style={{
+              padding: "18px",
+              marginBottom: "28px",
+              background: "#f8fafc",
+              border:
+                "1px solid #e5e7eb",
+              borderRadius: "10px"
+            }}
+          >
+
+            <label
+              style={{
+                display: "block",
+                fontWeight: "600",
+                marginBottom: "10px"
+              }}
+            >
+              Default Monthly Bonus
+            </label>
+
+
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                alignItems: "center",
+                flexWrap: "wrap"
+              }}
+            >
+
+              {/* DEFAULT AMOUNT */}
+
+              <div
+                style={{
+                  position: "relative",
+                  width: "280px"
+                }}
+              >
+
+                <span
+                  style={{
+                    position:
+                      "absolute",
+                    left: "12px",
+                    top: "50%",
+                    transform:
+                      "translateY(-50%)",
+                    color: "#6b7280",
+                    pointerEvents:
+                      "none"
+                  }}
+                >
+                  ₹
+                </span>
+
+
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="Enter amount"
+                  value={defaultBonus}
+                  onChange={(e) =>
+                    setDefaultBonus(
+                      e.target.value
+                    )
+                  }
+                  style={{
+                    width: "100%",
+                    paddingLeft:
+                      "30px",
+                    boxSizing:
+                      "border-box"
+                  }}
+                />
+
+              </div>
+
+
+              {/* APPLY BUTTON */}
+
+              <button
+                type="button"
+                className="add-btn"
+                onClick={
+                  applyDefaultBonus
+                }
+              >
+                Apply to All Months
+              </button>
+
+            </div>
+
+          </div>
+
+
+          {/* ================= MONTHLY BONUS ================= */}
+
+          <h4
+            style={{
+              marginBottom: "18px"
+            }}
+          >
+            Monthly Bonus
+          </h4>
+
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(4, 1fr)",
+              gap: "20px"
+            }}
+          >
+
+            {MONTHS.map((month) => (
+
+              <div
+                key={month.value}
+                className="form-field"
+              >
+
+                <label>
+                  {month.name}
+                </label>
+
+
+                <div
+                  style={{
+                    position:
+                      "relative"
+                  }}
+                >
+
+                  <span
+                    style={{
+                      position:
+                        "absolute",
+                      left: "12px",
+                      top: "50%",
+                      transform:
+                        "translateY(-50%)",
+                      color: "#6b7280",
+                      pointerEvents:
+                        "none"
+                    }}
+                  >
+                    ₹
+                  </span>
+
+
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={
+                      monthlyBonuses[
+                        month.value
+                      ]
+                    }
+                    onChange={(e) =>
+                      updateMonthlyBonus(
+                        month.value,
+                        e.target.value
+                      )
+                    }
+                    style={{
+                      paddingLeft:
+                        "30px"
+                    }}
+                  />
+
+                </div>
+
+              </div>
+
+            ))}
+
+          </div>
+
+
+          {/* ================= TOTAL ================= */}
+
+          <div
+            style={{
+              marginTop: "30px",
+              padding:
+                "16px 20px",
+              background:
+                "#f8fafc",
+              border:
+                "1px solid #e5e7eb",
+              borderRadius: "9px",
+              display: "flex",
+              justifyContent:
+                "space-between",
+              alignItems:
+                "center"
+            }}
+          >
+
+            <strong>
+              Total Variable Bonus
+            </strong>
+
+
+            <strong
+              style={{
+                fontSize: "20px",
+                color: "#2563eb"
+              }}
+            >
+              ₹
+              {calculateVariableBonus()
+                .toLocaleString(
+                  "en-IN"
+                )}
+            </strong>
+
+          </div>
+
+        </div>
+
+
+        {/* ================= GENERATE BUTTON ================= */}
+
+        <div
+          style={{
+            marginTop: "28px",
+            display: "flex",
+            justifyContent:
+              "flex-end"
+          }}
+        >
+
+          <button
+            type="button"
+            className="add-btn"
+            onClick={
+              generatePayslip
+            }
+            disabled={loading}
+          >
+
+            {loading
+              ? "Generating..."
+              : "Generate Payslip"}
+
+          </button>
+
+        </div>
+
+      </div>
+
     </div>
+
   );
 };
 

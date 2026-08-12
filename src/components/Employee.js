@@ -31,7 +31,7 @@ const Employee = () => {
       });
 
       if (res.status === 401) {
-        alert("Session expired — please login again");
+        console.warn("Session expired — please login again");
         localStorage.clear();
         navigate("/login", { replace: true });
         return;
@@ -41,7 +41,7 @@ const Employee = () => {
       setEmployees(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Fetch employees error:", err);
-      alert("Network error — could not reach backend");
+      console.warn("Network error — could not reach backend");
     } finally {
       setLoading(false);
     }
@@ -70,10 +70,10 @@ const Employee = () => {
 
       if (!res.ok) throw new Error();
 
-      alert("Employee deactivated successfully");
+      console.warn("Employee deactivated successfully");
       loadEmployees();
     } catch {
-      alert("Deactivate failed");
+      console.warn("Deactivate failed");
     } finally {
       setActionLoading(false);
     }
@@ -102,10 +102,10 @@ const Employee = () => {
 
       if (!res.ok) throw new Error();
 
-      alert("Employee permanently deleted");
+      console.warn("Employee permanently deleted");
       loadEmployees();
     } catch {
-      alert("Permanent delete failed");
+      console.warn("Permanent delete failed");
     } finally {
       setActionLoading(false);
     }
@@ -232,3 +232,4 @@ const Employee = () => {
 };
 
 export default Employee;
+

@@ -26,7 +26,7 @@ const LoginPage = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.message || "Login failed");
+        console.warn(data.message || "Login failed");
         return;
       }
 
@@ -37,19 +37,19 @@ const LoginPage = () => {
       localStorage.setItem("user", JSON.stringify(data.user));
       localStorage.setItem("role", role);
 
-      alert("Login Success 🎉");
+      console.warn("Login Success 🎉");
 
       if (role === "admin") {
         navigate("/app/employees", { replace: true });
       } else if (role === "employee") {
         navigate("/app/employee-dashboard", { replace: true });
       } else {
-        alert("Invalid role received from server");
+        console.warn("Invalid role received from server");
       }
 
     } catch (err) {
       console.error(err);
-      alert("Server error — backend not reachable");
+      console.warn("Server error — backend not reachable");
     }
   };
 
@@ -142,3 +142,4 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
+

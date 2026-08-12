@@ -42,7 +42,7 @@ const PayrollList = () => {
     );
 
     if (!res.ok) {
-      alert("Failed to delete payslip");
+      console.warn("Failed to delete payslip");
       return;
     }
 
@@ -188,3 +188,4 @@ const iconBtn = {
 };
 
 export default PayrollList;
+
