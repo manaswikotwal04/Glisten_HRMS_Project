@@ -96,7 +96,9 @@ const Sidebar = () => {
             <Link to="/app/employees" className="menu-item">
               Employees
             </Link>
-
+            <Link to="/app/employee-hours" className="menu-item">
+              Employee Hours
+            </Link>
             <Link to="/app/leave-requests" className="menu-item">
               Leave Requests
             </Link>
@@ -137,6 +139,9 @@ const Sidebar = () => {
 
             <Link to="/app/my-leaves" className="menu-item">
               My Leaves
+            </Link>
+            <Link to="/app/hours-management" className="menu-item">
+              Hours Management
             </Link>
 
             {employeeId && (

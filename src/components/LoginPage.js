@@ -7,6 +7,7 @@ const LoginPage = () => {
   const [activeTab, setActiveTab] = useState("employee");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -15,6 +16,7 @@ const LoginPage = () => {
       activeTab === "admin"
         ? "http://localhost:5000/api/admin/login"
         : "http://localhost:5000/api/employee-auth/login";
+        
 
     try {
       const res = await fetch(url, {
@@ -111,13 +113,29 @@ const LoginPage = () => {
           <label>Password</label>
           <div className="password-box">
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="********"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
-            <span className="eye-icon">👁</span>
+             <button
+    type="button"
+    onClick={() => setShowPassword(!showPassword)}
+    style={{
+      position: "absolute",
+      right: "10px",
+      top: "35%",
+      transform: "translateY(-50%)",
+      border: "none",
+      background: "transparent",
+      cursor: "pointer",
+      padding: 0
+    }}
+  >
+    {showPassword ? "👁️" : "👁️‍🗨️"}
+  </button>
+            
           </div>
 
       

@@ -2,8 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
-
-
+import attendanceRoutes  from "./routes/attendance.routes.js";
 import employeeRoutes from "./routes/employee.routes.js";
 import salaryRoutes from "./routes/salary.routes.js";
 import salarySlipRoutes from "./routes/salarySlip.routes.js";
@@ -28,7 +27,7 @@ app.use("/payslips", express.static(path.join(process.cwd(), "payslips")));
 
 app.use("/api/admin", adminRoutes);             
 app.use("/api/employee-auth", employeeAuthRoutes); 
-
+app.use("/api/attendance",attendanceRoutes);
 app.use("/api/employee", employeeRoutes);
 app.use("/api/salary", salaryRoutes);
 app.use("/api/salary-slip", salarySlipRoutes);

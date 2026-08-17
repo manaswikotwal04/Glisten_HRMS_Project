@@ -12,13 +12,14 @@ import {
 
 import Sidebar from "./components/sidebar";
 import LoginPage from "./components/LoginPage";
-
+import HoursManagement from "./components/HoursManagement";
 import MyLeaves from "./components/MyLeaves";
 import Employee from "./components/Employee";
 import AddEmployee from "./components/AddEmployee";
 import EditEmployee from "./components/EditEmployee";
 import LeaveRequests from "./components/LeaveRequests";
-
+import AdminHoursManagement
+  from "./components/AdminHoursManagement";
 import EmployeeDashboard from "./components/EmployeeDashboard";
 import EmployeePayslips from "./components/EmployeePayslips";
 import ApplyLeave from "./components/ApplyLeave";
@@ -31,13 +32,11 @@ import ChangePassword from "./components/changepassword";
 import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
 
-
 /* =====================================================
    ROLE PROTECTION
 ===================================================== */
 
 const RequireRole = ({ role, children }) => {
-
   const userRole = localStorage.getItem("role");
 
   if (!userRole) {
@@ -50,7 +49,6 @@ const RequireRole = ({ role, children }) => {
 
   return children;
 };
-
 
 /* =====================================================
    APP LAYOUT
@@ -68,10 +66,9 @@ const AppLayout = () => {
       style={{
         display: "flex",
         width: "100%",
-        minHeight: "100vh"
+        minHeight: "100vh",
       }}
     >
-
       {/* SIDEBAR */}
       <Sidebar />
 
@@ -81,16 +78,14 @@ const AppLayout = () => {
           flex: 1,
           width: "calc(100% - 250px)",
           minWidth: 0,
-          boxSizing: "border-box"
+          boxSizing: "border-box",
         }}
       >
         <Outlet />
       </main>
-
     </div>
   );
 };
-
 
 /* =====================================================
    ROUTER
@@ -98,14 +93,12 @@ const AppLayout = () => {
 
 const appRouter = createBrowserRouter(
   [
-
     /* ================= ROOT ================= */
 
     {
       path: "/",
       element: <Navigate to="/login" replace />,
     },
-
 
     /* ================= LOGIN ================= */
 
@@ -114,7 +107,6 @@ const appRouter = createBrowserRouter(
       element: <LoginPage />,
     },
 
-
     /* ================= FORGOT PASSWORD ================= */
 
     {
@@ -122,15 +114,13 @@ const appRouter = createBrowserRouter(
       element: <ForgotPassword />,
     },
 
-
     /* ================= RESET PASSWORD ================= */
 
     {
       path: "/reset-password",
       element: <ResetPassword />,
     },
-
-
+    
     /* =================================================
        APPLICATION
     ================================================= */
@@ -141,7 +131,6 @@ const appRouter = createBrowserRouter(
       element: <AppLayout />,
 
       children: [
-
         /* ================= ADMIN ================= */
 
         {
@@ -154,7 +143,6 @@ const appRouter = createBrowserRouter(
           ),
         },
 
-
         {
           path: "employees/add",
 
@@ -164,7 +152,14 @@ const appRouter = createBrowserRouter(
             </RequireRole>
           ),
         },
-
+        {
+  path: "hours-management",
+  element: (
+    <RequireRole role="employee">
+      <HoursManagement />
+    </RequireRole>
+  )
+},
 
         {
           path: "employees/edit/:employeeId",
@@ -175,7 +170,6 @@ const appRouter = createBrowserRouter(
             </RequireRole>
           ),
         },
-
 
         /* ================= ADMIN LEAVE ================= */
 
@@ -188,8 +182,14 @@ const appRouter = createBrowserRouter(
             </RequireRole>
           ),
         },
-
-
+        {
+  path: "employee-hours",
+  element: (
+    <RequireRole role="admin">
+      <AdminHoursManagement />
+    </RequireRole>
+  )
+},
         /* ================= SALARY ================= */
 
         {
@@ -201,7 +201,6 @@ const appRouter = createBrowserRouter(
             </RequireRole>
           ),
         },
-
 
         /* ================= PAYSLIP ================= */
 
@@ -215,7 +214,6 @@ const appRouter = createBrowserRouter(
           ),
         },
 
-
         /* ================= PAYROLL ================= */
 
         {
@@ -228,11 +226,7 @@ const appRouter = createBrowserRouter(
           ),
         },
 
-
-        /* =================================================
-           EMPLOYEE
-        ================================================= */
-
+        
 
         /* ================= EMPLOYEE DASHBOARD ================= */
 
@@ -246,7 +240,6 @@ const appRouter = createBrowserRouter(
           ),
         },
 
-
         /* ================= APPLY LEAVE ================= */
 
         {
@@ -258,7 +251,6 @@ const appRouter = createBrowserRouter(
             </RequireRole>
           ),
         },
-
 
         /* ================= MY LEAVES ================= */
 
@@ -272,7 +264,6 @@ const appRouter = createBrowserRouter(
           ),
         },
 
-
         /* ================= EMPLOYEE PAYSLIPS ================= */
 
         {
@@ -285,7 +276,6 @@ const appRouter = createBrowserRouter(
           ),
         },
 
-
         /* ================= CHANGE PASSWORD ================= */
 
         {
@@ -297,10 +287,8 @@ const appRouter = createBrowserRouter(
             </RequireRole>
           ),
         },
-
       ],
     },
-
   ],
 
   /* =====================================================
@@ -311,15 +299,9 @@ const appRouter = createBrowserRouter(
     future: {
       v7_startTransition: true,
     },
-  }
+  },
 );
 
+const root = ReactDOM.createRoot(document.getElementById("root"));
 
-
-const root = ReactDOM.createRoot(
-  document.getElementById("root")
-);
-
-root.render(
-  <RouterProvider router={appRouter} />
-);
+root.render(<RouterProvider router={appRouter} />);
