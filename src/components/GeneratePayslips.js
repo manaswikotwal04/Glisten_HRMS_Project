@@ -815,3 +815,4 @@ const GeneratePayslip = () => {
 };
 
 export default GeneratePayslip;
+

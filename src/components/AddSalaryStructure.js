@@ -280,3 +280,5 @@ const AddSalaryStructure = () => {
 
 export default AddSalaryStructure;
 
+
+
