@@ -16,7 +16,7 @@ const EmployeePayslips = () => {
       return;
     }
 
-    fetch(`http://localhost:5000/api/salary-slip/employee/${employeeId}`)
+    fetch(`/api/salary-slip/employee/${employeeId}`)
       .then(res => res.json())
       .then(data => setPayslips(Array.isArray(data) ? data : []))
       .finally(() => setLoading(false));
@@ -55,7 +55,7 @@ const EmployeePayslips = () => {
 
               <div style={{ textAlign: "center" }}>
                 <a
-                  href={`http://localhost:5000/${p.pdf_path}`}
+                  href={`/${p.pdf_path}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={downloadBtn}

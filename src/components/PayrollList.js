@@ -6,7 +6,7 @@ const PayrollList = () => {
   const token = localStorage.getItem("token");
 
   const loadData = async () => {
-    const res = await fetch("http://localhost:5000/api/salary-slip/list", {
+    const res = await fetch("/api/salary-slip/list", {
       headers: { Authorization: `Bearer ${token}` }
     });
 
@@ -34,7 +34,7 @@ const PayrollList = () => {
     if (!window.confirm("Are you sure you want to delete this payslip?")) return;
 
     const res = await fetch(
-      `http://localhost:5000/api/salary-slip/delete/${id}`,
+      `/api/salary-slip/delete/${id}`,
       {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
@@ -130,7 +130,7 @@ const PayrollList = () => {
                 <td style={td}>
                   {/* DOWNLOAD */}
                  <a
-  href={`http://localhost:5000/${row.pdf_path}`}
+  href={`/${row.pdf_path}`}
   target="_blank"
   rel="noopener noreferrer"
 >

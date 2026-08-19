@@ -141,7 +141,7 @@ const ApplyLeave = () => {
       };
 
       const res = await fetch(
-        "http://localhost:5000/api/leave/apply",
+        "/api/leave/apply",
         {
           method: "POST",
           headers: {

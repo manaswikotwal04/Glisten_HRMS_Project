@@ -270,7 +270,7 @@ export const getMyLeaves = async (req, res) => {
         leaveType,
         fromDate,
         toDate,
-        numberOfDays,
+        numberOfDays, 
         reason,
         status,
         appliedOn

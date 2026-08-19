@@ -17,7 +17,7 @@ const MyLeaves = () => {
       }
 
       const res = await fetch(
-        "http://localhost:5000/api/leave/my-leaves",
+        "/api/leave/my-leaves",
         {
           method: "GET",
           headers: {

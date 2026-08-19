@@ -21,8 +21,8 @@ const Employee = () => {
       }
 
       const url = showInactive
-        ? "http://localhost:5000/api/employee/inactive"
-        : "http://localhost:5000/api/employee";
+        ? "/api/employee/inactive"
+        : "/api/employee";
 
       const res = await fetch(url, {
         headers: {
@@ -61,7 +61,7 @@ const Employee = () => {
       const token = localStorage.getItem("token");
 
       const res = await fetch(
-        `http://localhost:5000/api/employee/${employeeId}`,
+        `/api/employee/${employeeId}`,
         {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` }
@@ -93,7 +93,7 @@ const Employee = () => {
       const token = localStorage.getItem("token");
 
       const res = await fetch(
-        `http://localhost:5000/api/employee/hard/${employeeId}`,
+        `/api/employee/hard/${employeeId}`,
         {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` }

@@ -156,7 +156,7 @@ const HoursManagement = () => {
       }
 
       const res = await fetch(
-        `http://localhost:5000/api/attendance/my?${params.toString()}`,
+        `/api/attendance/my?${params.toString()}`,
         {
           method: "GET",
 
@@ -328,7 +328,7 @@ const HoursManagement = () => {
 
       const worked = existingWorked === 1 ? false : true;
 
-      const res = await fetch("http://localhost:5000/api/attendance/mark", {
+      const res = await fetch("/api/attendance/mark", {
         method: "POST",
 
         headers: {

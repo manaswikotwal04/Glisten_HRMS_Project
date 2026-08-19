@@ -41,7 +41,7 @@ const EmployeeDashboard = () => {
       return;
     }
 
-    fetch(`http://localhost:5000/api/employee/id/${user.employeeId}`, {
+    fetch(`/api/employee/id/${user.employeeId}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

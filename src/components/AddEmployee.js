@@ -80,7 +80,7 @@ const isStrongPassword = (password) => {
     delete payload.pfNo;
     delete payload.pan;
 
-    const res = await fetch("http://localhost:5000/api/employee/add", {
+    const res = await fetch("/api/employee/add", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

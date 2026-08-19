@@ -22,7 +22,7 @@ const LeaveRequests = () => {
       }
 
       const res = await fetch(
-        "http://localhost:5000/api/leave/all",
+        "/api/leave/all",
         {
           method: "GET",
           headers: {
@@ -94,7 +94,7 @@ const LeaveRequests = () => {
       setProcessingId(id);
 
       const res = await fetch(
-        `http://localhost:5000/api/leave/${id}/status`,
+        `/api/leave/${id}/status`,
         {
           method: "PUT",
 

@@ -34,7 +34,7 @@ const EditEmployee = () => {
         const token = localStorage.getItem("token");
         if (!token) return navigate("/login");
 
-        const res = await fetch(`http://localhost:5000/api/employee/id/${employeeId}`, {
+        const res = await fetch(`/api/employee/id/${employeeId}`, {
           headers: {
             Authorization: `Bearer ${token}`
           }
@@ -101,7 +101,7 @@ const EditEmployee = () => {
     delete payload.pan;
 
     const res = await fetch(
-      `http://localhost:5000/api/employee/${employeeId}`,
+      `/api/employee/${employeeId}`,
       {
         method: "PUT",
         headers: {

@@ -14,8 +14,8 @@ const LoginPage = () => {
 
     const url =
       activeTab === "admin"
-        ? "http://localhost:5000/api/admin/login"
-        : "http://localhost:5000/api/employee-auth/login";
+        ? "/api/admin/login"
+        : "/api/employee-auth/login";
         
 
     try {

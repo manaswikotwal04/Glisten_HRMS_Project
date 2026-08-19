@@ -48,7 +48,7 @@ const AddSalaryStructure = () => {
 
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/employee")
+    fetch("/api/employee")
       .then(res => res.json())
       .then(setEmployees)
       .catch(console.error);
@@ -91,7 +91,7 @@ const AddSalaryStructure = () => {
     try {
       const token = localStorage.getItem("token");
 
-      const res = await fetch("http://localhost:5000/api/salary", {
+      const res = await fetch("/api/salary", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

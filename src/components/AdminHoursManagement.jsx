@@ -92,7 +92,7 @@ const AdminHoursManagement = () => {
       try {
         const token = localStorage.getItem("token");
 
-        const res = await fetch("http://localhost:5000/api/employee", {
+        const res = await fetch("/api/employee", {
           method: "GET",
 
           headers: {
@@ -154,7 +154,7 @@ const AdminHoursManagement = () => {
       }
 
       const res = await fetch(
-        `http://localhost:5000/api/attendance/all?${params.toString()}`,
+        `/api/attendance/all?${params.toString()}`,
         {
           method: "GET",
 

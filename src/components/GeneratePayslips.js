@@ -66,7 +66,7 @@ const GeneratePayslip = () => {
       localStorage.getItem("token");
 
     fetch(
-      "http://localhost:5000/api/employee",
+      "/api/employee",
       {
         headers: {
           Authorization: `Bearer ${token}`
@@ -281,7 +281,7 @@ const GeneratePayslip = () => {
       /* ================= API ================= */
 
       const res = await fetch(
-        "http://localhost:5000/api/salary-slip/generate",
+        "/api/salary-slip/generate",
         {
           method: "POST",
 
