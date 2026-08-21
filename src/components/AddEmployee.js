@@ -59,7 +59,7 @@ const isStrongPassword = (password) => {
     !/\d/.test(formData.password) ||
     !/[@$!%*?&#]/.test(formData.password)
   ) {
-    console.warn(
+    alert(
       "Password must be at least 8 characters and include uppercase, lowercase, number, and special character"
     );
     return;
@@ -92,17 +92,17 @@ const isStrongPassword = (password) => {
     const data = await res.json();
 
     if (!res.ok) {
-      console.warn(data.message || "Failed to add employee");
+      alert(data.message || "Failed to add employee");
       return;
     }
 
-    console.warn("Employee Added Successfully 🎉");
+    alert("Employee Added Successfully 🎉");
     setFormData(INITIAL_FORM);
     navigate("/app/employees");
 
   } catch (error) {
     console.error(error);
-    console.warn("Server Error 🚨");
+    alert("Server Error 🚨");
   } finally {
     setLoading(false);
   }

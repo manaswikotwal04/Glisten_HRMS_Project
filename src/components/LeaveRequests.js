@@ -53,7 +53,7 @@ const LeaveRequests = () => {
         error
       );
 
-      console.warn(
+      alert(
         error.message ||
         "Unable to load leave requests"
       );
@@ -120,7 +120,7 @@ const LeaveRequests = () => {
         );
       }
 
-      console.warn(
+      alert(
         status === "Approved"
           ? "Leave approved successfully"
           : "Leave rejected successfully"
@@ -136,7 +136,7 @@ const LeaveRequests = () => {
         error
       );
 
-      console.warn(
+      alert(
         error.message ||
         "Unable to update leave"
       );

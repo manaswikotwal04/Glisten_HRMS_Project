@@ -82,7 +82,7 @@ const AddSalaryStructure = () => {
     e.preventDefault();
 
     if (!form.employeeId || !form.basic_salary || !form.effective_from) {
-      console.warn("Please fill all required fields");
+      alert("Please fill all required fields");
       return;
     }
 
@@ -118,7 +118,7 @@ const AddSalaryStructure = () => {
       }
 
       const data = await res.json();
-      console.warn(data.message || "Salary structure saved successfully ✅");
+      alert(data.message || "Salary structure saved successfully ✅");
 
       setForm({
         employeeId: "",
@@ -137,7 +137,7 @@ const AddSalaryStructure = () => {
 
     } catch (err) {
       console.error(err);
-      console.warn("Failed to save salary structure");
+      alert("Failed to save salary structure");
     } finally {
       setLoading(false);
     }

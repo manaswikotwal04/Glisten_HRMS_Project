@@ -9,11 +9,41 @@ const ChangePassword = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Password validation
+  const isStrongPassword = (password) => {
+    return (
+      password.length >= 8 &&
+      /[A-Z]/.test(password) &&
+      /[a-z]/.test(password) &&
+      /\d/.test(password) &&
+      /[@$!%*?&#]/.test(password)
+    );
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Validate new password
+    if (!isStrongPassword(newPassword)) {
+      alert(
+        "Password must be at least 8 characters and include:\n\n" +
+          "• One uppercase letter\n" +
+          "• One lowercase letter\n" +
+          "• One number\n" +
+          "• One special character (@$!%*?&#)",
+      );
+      return;
+    }
+
+    // Check if passwords match
     if (newPassword !== confirmPassword) {
-      console.warn("Passwords do not match");
+      alert("Passwords do not match");
+      return;
+    }
+
+    // Optional: Prevent using the old password again
+    if (oldPassword === newPassword) {
+      alert("New password cannot be the same as the old password");
       return;
     }
 
@@ -22,34 +52,31 @@ const ChangePassword = () => {
     try {
       const token = localStorage.getItem("token");
 
-      const res = await fetch(
-        "/api/password/change",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            oldPassword,
-            newPassword
-          })
-        }
-      );
+      const res = await fetch("/api/password/change", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          oldPassword,
+          newPassword,
+        }),
+      });
 
       const data = await res.json();
 
       if (!res.ok) {
-        console.warn(data.message || "Failed to change password");
+        alert(data.message || "Failed to change password");
         return;
       }
 
-      console.warn("Password changed successfully. Please login again.");
+      alert("Password changed successfully. Please login again.");
+
       localStorage.clear();
       navigate("/login");
-
     } catch (err) {
-      console.warn("Server error");
+      alert("Server error");
     } finally {
       setLoading(false);
     }
@@ -58,7 +85,6 @@ const ChangePassword = () => {
   return (
     <div className="login-wrapper">
       <div className="login-card">
-
         <h2 className="login-title">Change Password</h2>
 
         <form className="login-form" onSubmit={handleSubmit}>
@@ -86,24 +112,24 @@ const ChangePassword = () => {
             required
           />
 
-          <button className="login-btn" disabled={loading}>
+          <button type="submit" className="login-btn" disabled={loading}>
             {loading ? "Updating..." : "Update Password"}
           </button>
         </form>
 
         <p
-          style={{ marginTop: 16, cursor: "pointer", textAlign: "center" }}
+          style={{
+            marginTop: 16,
+            cursor: "pointer",
+            textAlign: "center",
+          }}
           onClick={() => navigate(-1)}
         >
           ← Back
         </p>
-
       </div>
     </div>
   );
 };
 
 export default ChangePassword;
-
-
-

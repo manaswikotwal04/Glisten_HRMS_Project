@@ -30,13 +30,13 @@ const EmployeeDashboard = () => {
     }
 
     if (!user || role?.toLowerCase() !== "employee" || !token) {
-      console.warn("Unauthorized access");
+      alert("Unauthorized access");
       handleLogout();
       return;
     }
 
     if (!user.employeeId) {
-      console.warn("Employee ID missing. Please login again.");
+      alert("Employee ID missing. Please login again.");
       handleLogout();
       return;
     }
@@ -53,7 +53,7 @@ const EmployeeDashboard = () => {
       .then((data) => setEmployee(data))
       .catch((err) => {
         console.error("Employee fetch error:", err);
-        console.warn("Session expired. Please login again.");
+        alert("Session expired. Please login again.");
         handleLogout();
       })
       .finally(() => setLoading(false));

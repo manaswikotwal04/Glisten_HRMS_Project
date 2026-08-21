@@ -41,7 +41,7 @@ const EditEmployee = () => {
         });
 
         if (!res.ok) {
-          console.warn("Failed to load employee");
+          alert("Failed to load employee");
           return;
         }
 
@@ -69,7 +69,7 @@ const EditEmployee = () => {
 
       } catch (err) {
         console.error("Load employee error:", err);
-        console.warn("Network error");
+        alert("Network error");
       }
     };
 
@@ -113,11 +113,11 @@ const EditEmployee = () => {
     );
 
     if (!res.ok) {
-      console.warn("Update failed");
+      alert("Update failed");
       return;
     }
 
-    console.warn("Employee Updated Successfully 🎉");
+    alert("Employee Updated Successfully 🎉");
     navigate("/app/employees");
   };
 

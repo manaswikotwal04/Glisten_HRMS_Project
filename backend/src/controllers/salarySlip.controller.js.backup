@@ -177,7 +177,6 @@ export const generateSalarySlip = async (req, res) => {
     ===================================================== */
 
     let loopMonth = new Date(fromDate);
-    let lastPdfPath = null;
 
     while (loopMonth <= toDate) {
       /* ===================================================
@@ -436,12 +435,10 @@ export const generateSalarySlip = async (req, res) => {
       =================================================== */
 
       const doc = new PDFDocument({
-  margin: 40,
-});
+        margin: 40,
+      });
 
-const writeStream = fs.createWriteStream(pdfPath);
-
-doc.pipe(writeStream);
+      doc.pipe(fs.createWriteStream(pdfPath));
 
       /* ===================================================
          LOGO
@@ -683,14 +680,7 @@ doc.pipe(writeStream);
          FINISH PDF
       =================================================== */
 
-   await new Promise((resolve, reject) => {
-  writeStream.on("finish", resolve);
-  writeStream.on("error", reject);
-
-  doc.end();
-});
-
-      lastPdfPath = pdfPath;
+      doc.end();
 
       /* ===================================================
          NEXT MONTH
@@ -708,23 +698,9 @@ doc.pipe(writeStream);
        RESPONSE
     ===================================================== */
 
-    if (!lastPdfPath) {
-      return res.status(500).json({
-        message: "PDF was not generated",
-      });
-    }
-
-    const absolutePdfPath = path.resolve(lastPdfPath);
-
-    return res.download(
-      absolutePdfPath,
-      path.basename(lastPdfPath),
-      (err) => {
-        if (err) {
-          console.error("PDF DOWNLOAD ERROR:", err);
-        }
-      }
-    );
+    res.json({
+      message: "Salary slips generated successfully",
+    });
   } catch (err) {
     console.error("PAYROLL ERROR:", err);
 
@@ -856,14 +832,6 @@ export const getPayslipsByEmployee = async (req, res) => {
   } catch (err) {
     console.error("Fetch payslips error:", err);
 
-    res.status(200).json([]);
+    res.status(500).json([]);
   }
 };
-
-
-
-
-
-
-
-

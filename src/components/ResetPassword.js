@@ -11,51 +11,78 @@ const ResetPassword = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-
   useEffect(() => {
     const urlToken = searchParams.get("token");
+
     if (urlToken) {
       setToken(urlToken);
     }
   }, [searchParams]);
 
+  // Password validation
+  const isStrongPassword = (password) => {
+    return (
+      password.length >= 8 &&
+      /[A-Z]/.test(password) &&
+      /[a-z]/.test(password) &&
+      /\d/.test(password) &&
+      /[@$!%*?&#]/.test(password)
+    );
+  };
+
   const handleReset = async (e) => {
     e.preventDefault();
 
-    if (newPassword !== confirmPassword) {
-      console.warn("Passwords do not match");
+    // Check password strength
+    if (!isStrongPassword(newPassword)) {
+      alert(
+        "Password must be at least 8 characters and include:\n\n" +
+          "• One uppercase letter\n" +
+          "• One lowercase letter\n" +
+          "• One number\n" +
+          "• One special character (@$!%*?&#)",
+      );
       return;
     }
 
+    // Check confirm password
+    if (newPassword !== confirmPassword) {
+      alert("Passwords do not match");
+      return;
+    }
+
+    // Check token
     if (!token) {
-      console.warn("Reset token is missing");
+      alert("Reset token is missing");
       return;
     }
 
     setLoading(true);
 
     try {
-      const res = await fetch(
-        "/api/password/reset",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token, newPassword })
-        }
-      );
+      const res = await fetch("/api/password/reset", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          token,
+          newPassword,
+        }),
+      });
 
       const data = await res.json();
 
       if (!res.ok) {
-        console.warn(data.message || "Reset failed");
+        alert(data.message || "Reset failed");
         return;
       }
 
-      console.warn("Password reset successful 🎉");
-      navigate("/login");
+      alert("Password reset successful 🎉");
 
+      navigate("/login");
     } catch (err) {
-      console.warn("Server error. Please try again.");
+      alert("Server error. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -64,17 +91,23 @@ const ResetPassword = () => {
   return (
     <div className="login-wrapper">
       <div className="login-card">
-
         <h2 className="login-title">Reset Password</h2>
-        <p style={{ color: "#6b7280", fontSize: 14, marginBottom: 20 }}>
+
+        <p
+          style={{
+            color: "#6b7280",
+            fontSize: 14,
+            marginBottom: 20,
+          }}
+        >
           Choose a new password for your account
         </p>
 
         <form className="login-form" onSubmit={handleReset}>
-
           {!searchParams.get("token") && (
             <>
               <label>Reset Token</label>
+
               <input
                 placeholder="Paste reset token here"
                 value={token}
@@ -85,6 +118,7 @@ const ResetPassword = () => {
           )}
 
           <label>New Password</label>
+
           <div className="password-box">
             <input
               type={showPassword ? "text" : "password"}
@@ -93,6 +127,7 @@ const ResetPassword = () => {
               onChange={(e) => setNewPassword(e.target.value)}
               required
             />
+
             <span
               className="eye-icon"
               style={{ cursor: "pointer" }}
@@ -103,6 +138,7 @@ const ResetPassword = () => {
           </div>
 
           <label>Confirm Password</label>
+
           <input
             type={showPassword ? "text" : "password"}
             placeholder="Confirm new password"
@@ -111,7 +147,7 @@ const ResetPassword = () => {
             required
           />
 
-          <button className="login-btn" disabled={loading}>
+          <button type="submit" className="login-btn" disabled={loading}>
             {loading ? "Resetting..." : "Reset Password"}
           </button>
         </form>
@@ -122,19 +158,15 @@ const ResetPassword = () => {
             fontSize: 14,
             color: "#2563eb",
             cursor: "pointer",
-            textAlign: "center"
+            textAlign: "center",
           }}
           onClick={() => navigate("/login")}
         >
           ← Back to Login
         </p>
-
       </div>
     </div>
   );
 };
 
 export default ResetPassword;
-
-
-

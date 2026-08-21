@@ -28,7 +28,7 @@ const LoginPage = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        console.warn(data.message || "Login failed");
+        alert(data.message || "Login failed");
         return;
       }
 
@@ -46,12 +46,12 @@ const LoginPage = () => {
       } else if (role === "employee") {
         navigate("/app/employee-dashboard", { replace: true });
       } else {
-        console.warn("Invalid role received from server");
+        alert("Invalid role received from server");
       }
 
     } catch (err) {
       console.error(err);
-      console.warn("Server error — backend not reachable");
+      alert("Server error — backend not reachable");
     }
   };
 
