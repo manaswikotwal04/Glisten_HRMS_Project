@@ -1,4 +1,5 @@
 import db from "../config/db.js";
+import transporter from "../config/mailer.js";
 
 /* =====================================================
    APPLY LEAVE - EMPLOYEE
@@ -10,25 +11,39 @@ export const applyLeave = async (req, res) => {
     // Employee ID comes from JWT
     const employeeId = req.user.employeeId;
 
-    const {
-      leaveType,
-      fromDate,
-      toDate,
-      numberOfDays,
-      reason
-    } = req.body;
+    const { leaveType, fromDate, toDate, numberOfDays, reason } = req.body;
 
-    /* ================= VALIDATION ================= */
+    /* ================= REQUIRED FIELD VALIDATION ================= */
 
-    if (
-      !leaveType ||
-      !fromDate ||
-      !toDate ||
-      !numberOfDays ||
-      !reason
-    ) {
+    if (!leaveType || !fromDate || !toDate || !numberOfDays || !reason) {
       return res.status(400).json({
-        message: "All leave fields are required"
+        message: "All leave fields are required",
+      });
+    }
+
+    /* ================= LEAVE TYPE VALIDATION ================= */
+
+    if (typeof leaveType !== "string" || leaveType.trim().length === 0) {
+      return res.status(400).json({
+        message: "Invalid leave type",
+      });
+    }
+
+    /* ================= REASON VALIDATION ================= */
+
+    if (typeof reason !== "string" || reason.trim().length < 3) {
+      return res.status(400).json({
+        message: "Reason must contain at least 3 characters",
+      });
+    }
+
+    /* ================= NUMBER OF DAYS VALIDATION ================= */
+
+    const leaveDays = Number(numberOfDays);
+
+    if (!Number.isFinite(leaveDays) || leaveDays <= 0) {
+      return res.status(400).json({
+        message: "Number of days must be greater than 0",
       });
     }
 
@@ -37,18 +52,62 @@ export const applyLeave = async (req, res) => {
     const startDate = new Date(fromDate);
     const endDate = new Date(toDate);
 
-    if (
-      isNaN(startDate.getTime()) ||
-      isNaN(endDate.getTime())
-    ) {
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
       return res.status(400).json({
-        message: "Invalid date"
+        message: "Invalid date",
       });
     }
 
+    /*
+      Normalize dates to midnight.
+
+      This prevents time-zone/time-of-day differences
+      from affecting the comparison.
+    */
+
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    /* ================= PAST DATE VALIDATION ================= */
+
+    if (startDate < today) {
+      return res.status(400).json({
+        message: "Cannot apply for leave on a past date",
+      });
+    }
+
+    /* ================= DATE RANGE VALIDATION ================= */
+
     if (endDate < startDate) {
       return res.status(400).json({
-        message: "To date cannot be before From date"
+        message: "To date cannot be before From date",
+      });
+    }
+
+    /* ================= CALCULATE ACTUAL DAYS ================= */
+
+    const millisecondsPerDay = 1000 * 60 * 60 * 24;
+
+    const actualNumberOfDays =
+      Math.round((endDate - startDate) / millisecondsPerDay) + 1;
+
+    /*
+      The submitted numberOfDays must match
+      the selected From Date and To Date.
+
+      Example:
+      From: 26 Aug
+      To:   28 Aug
+
+      Actual days = 3
+    */
+
+    if (leaveDays !== actualNumberOfDays) {
+      return res.status(400).json({
+        message: `Number of days does not match the selected dates. Expected ${actualNumberOfDays} day(s)`,
       });
     }
 
@@ -60,14 +119,29 @@ export const applyLeave = async (req, res) => {
       FROM employee
       WHERE employeeId = ?
       `,
-      [employeeId]
+      [employeeId],
     );
 
     if (employee.length === 0) {
       return res.status(404).json({
-        message: "Employee not found"
+        message: "Employee not found",
       });
     }
+
+    /*
+      Optional protection:
+      Inactive employees should not be able
+      to apply for new leave.
+
+      Uncomment if your status values are
+      exactly 'Active' and 'Inactive'.
+
+    if (employee[0].status !== "Active") {
+      return res.status(403).json({
+        message: "Inactive employee cannot apply for leave"
+      });
+    }
+    */
 
     /* ================= CHECK OVERLAPPING LEAVE ================= */
 
@@ -80,16 +154,13 @@ export const applyLeave = async (req, res) => {
       AND fromDate <= ?
       AND toDate >= ?
       `,
-      [
-        employeeId,
-        toDate,
-        fromDate
-      ]
+      [employeeId, toDate, fromDate],
     );
 
     if (existingLeave.length > 0) {
       return res.status(400).json({
-        message: "You already have a leave request for these dates"
+        message:
+          "You already have a pending or approved leave request for these dates",
       });
     }
 
@@ -111,33 +182,71 @@ export const applyLeave = async (req, res) => {
       `,
       [
         employeeId,
-        leaveType,
+        leaveType.trim(),
         fromDate,
         toDate,
-        numberOfDays,
-        reason
-      ]
+        leaveDays,
+        reason.trim(),
+      ],
     );
+
+    /* ================= SEND EMAIL TO ADMIN ================= */
+
+    try {
+      await transporter.sendMail({
+        from: process.env.SMTP_USER,
+        to: process.env.ADMIN_EMAIL,
+
+        subject: `New Leave Request - ${employee[0].name}`,
+
+        text: `
+A new leave request has been submitted.
+
+Employee Name: ${employee[0].name}
+Employee ID: ${employeeId}
+
+Leave Type: ${leaveType.trim()}
+From Date: ${fromDate}
+To Date: ${toDate}
+Number of Days: ${leaveDays}
+
+Reason:
+${reason.trim()}
+
+Status: Pending
+
+Please log in to the HRMS Admin Panel to review the leave request.
+        `,
+      });
+
+      console.log(
+        `Leave notification email sent successfully for employee: ${employee[0].name}`,
+      );
+    } catch (emailError) {
+      /*
+        Leave is already saved successfully.
+
+        We only log the email error so that
+        SMTP problems do not cancel the leave request.
+      */
+
+      console.error("LEAVE NOTIFICATION EMAIL ERROR:", emailError);
+    }
 
     /* ================= SUCCESS ================= */
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Leave applied successfully",
-      status: "Pending"
+      status: "Pending",
     });
-
   } catch (error) {
-    console.error(
-      "APPLY LEAVE ERROR:",
-      error
-    );
+    console.error("APPLY LEAVE ERROR:", error);
 
-    res.status(500).json({
-      message: "Server error"
+    return res.status(500).json({
+      message: "Server error",
     });
   }
 };
-
 
 /* =====================================================
    GET ALL LEAVES - ADMIN
@@ -146,7 +255,6 @@ export const applyLeave = async (req, res) => {
 
 export const getAllLeaves = async (req, res) => {
   try {
-
     const [rows] = await db.query(
       `
       SELECT
@@ -167,23 +275,19 @@ export const getAllLeaves = async (req, res) => {
         ON e.employeeId = l.employeeId
 
       ORDER BY l.appliedOn DESC
-      `
+      `,
     );
 
-    res.status(200).json(rows);
-
+    return res.status(200).json(rows);
   } catch (error) {
+    console.error("GET ALL LEAVES ERROR:", error);
 
-    console.error(
-      "GET ALL LEAVES ERROR:",
-      error
-    );
-
-    res.status(500).json({
-      message: "Server error"
+    return res.status(500).json({
+      message: "Server error",
     });
   }
 };
+
 /* =====================================================
    UPDATE LEAVE STATUS - ADMIN
    PUT /api/leave/:id/status
@@ -194,65 +298,63 @@ export const updateLeaveStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    // Only these two statuses are allowed
+    /* ================= STATUS VALIDATION ================= */
+
     if (!["Approved", "Rejected"].includes(status)) {
       return res.status(400).json({
-        message: "Invalid leave status"
+        message: "Invalid leave status",
       });
     }
 
-    // Check whether leave exists
+    /* ================= CHECK LEAVE ================= */
+
     const [leave] = await db.query(
       `
       SELECT id, status
       FROM leave_requests
       WHERE id = ?
       `,
-      [id]
+      [id],
     );
 
     if (leave.length === 0) {
       return res.status(404).json({
-        message: "Leave request not found"
+        message: "Leave request not found",
       });
     }
 
-    // Don't allow changing an already processed request
-    if (
-      leave[0].status === "Approved" ||
-      leave[0].status === "Rejected"
-    ) {
+    /* ================= PREVENT REPROCESSING ================= */
+
+    if (leave[0].status === "Approved" || leave[0].status === "Rejected") {
       return res.status(400).json({
-        message: "This leave request has already been processed"
+        message: "This leave request has already been processed",
       });
     }
 
-    // Update status
+    /* ================= UPDATE STATUS ================= */
+
     await db.query(
       `
       UPDATE leave_requests
       SET status = ?
       WHERE id = ?
       `,
-      [status, id]
+      [status, id],
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       message: `Leave ${status.toLowerCase()} successfully`,
-      status
+      status,
     });
-
   } catch (error) {
-    console.error(
-      "UPDATE LEAVE STATUS ERROR:",
-      error
-    );
+    console.error("UPDATE LEAVE STATUS ERROR:", error);
 
-    res.status(500).json({
-      message: "Server error"
+    return res.status(500).json({
+      message: "Server error",
     });
   }
 };
+
 /* =====================================================
    GET MY LEAVES - EMPLOYEE
    GET /api/leave/my-leaves
@@ -270,24 +372,26 @@ export const getMyLeaves = async (req, res) => {
         leaveType,
         fromDate,
         toDate,
-        numberOfDays, 
+        numberOfDays,
         reason,
         status,
         appliedOn
+
       FROM leave_requests
+
       WHERE employeeId = ?
+
       ORDER BY appliedOn DESC
       `,
-      [employeeId]
+      [employeeId],
     );
 
-    res.status(200).json(rows);
-
+    return res.status(200).json(rows);
   } catch (error) {
     console.error("GET MY LEAVES ERROR:", error);
 
-    res.status(500).json({
-      message: "Server error"
+    return res.status(500).json({
+      message: "Server error",
     });
   }
 };
