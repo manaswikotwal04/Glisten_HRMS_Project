@@ -314,11 +314,11 @@ const ApplyLeave = () => {
             >
 
               <option value="">
-                Select Leave Type
+                Select Leave Type/Work from Home
               </option>
 
               <option value="Casual Leave">
-                Casual Leave
+                Work From Home
               </option>
 
               <option value="Sick Leave">
@@ -326,7 +326,7 @@ const ApplyLeave = () => {
               </option>
 
               <option value="Earned Leave">
-                Earned Leave
+                Complementry Off
               </option>
 
               <option value="Unpaid Leave">

@@ -3,36 +3,30 @@ import express from "express";
 import {
   getMyAttendance,
   markAttendance,
-  getAllAttendance
+  submitAttendance,
+  getAllAttendance,
 } from "../controllers/attendance.controller.js";
 
 import {
   auth,
-  adminAuth
+  adminAuth,
 } from "../middleware/auth.middleware.js";
-
 
 const router = express.Router();
 
-
 /* =========================================================
-   EMPLOYEE
+   EMPLOYEE - GET OWN ATTENDANCE
 ========================================================= */
 
-/*
-   Get logged-in employee attendance
-*/
-
 router.get(
-  "/my",
+  "/",
   auth,
   getMyAttendance
 );
 
-
-/*
-   Check / Uncheck attendance
-*/
+/* =========================================================
+   EMPLOYEE - MARK SINGLE DAY
+========================================================= */
 
 router.post(
   "/mark",
@@ -40,20 +34,24 @@ router.post(
   markAttendance
 );
 
-
 /* =========================================================
-   ADMIN
+   EMPLOYEE - SUBMIT FULL WEEK
 ========================================================= */
 
-/*
-   Admin can ONLY view attendance
-*/
+router.post(
+  "/submit",
+  auth,
+  submitAttendance
+);
+
+/* =========================================================
+   ADMIN - GET ALL ATTENDANCE
+========================================================= */
 
 router.get(
   "/all",
   adminAuth,
   getAllAttendance
 );
-
 
 export default router;

@@ -1,334 +1,667 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-/* =====================================================
-   MONTHS
-===================================================== */
-
-const MONTHS = [
-  { name: "January", value: 1 },
-  { name: "February", value: 2 },
-  { name: "March", value: 3 },
-  { name: "April", value: 4 },
-  { name: "May", value: 5 },
-  { name: "June", value: 6 },
-  { name: "July", value: 7 },
-  { name: "August", value: 8 },
-  { name: "September", value: 9 },
-  { name: "October", value: 10 },
-  { name: "November", value: 11 },
-  { name: "December", value: 12 },
-];
-
-/* =====================================================
-   GET DATE KEY
-===================================================== */
-
-const getDateKey = (date) => {
-  const year = date.getFullYear();
-
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-};
-
-/* =====================================================
-   GET WEEK NUMBER
-===================================================== */
-
-const getWeekNumber = (date) => {
-  const temp = new Date(date);
-
-  temp.setHours(0, 0, 0, 0);
-
-  temp.setDate(temp.getDate() + 4 - (temp.getDay() || 7));
-
-  const yearStart = new Date(temp.getFullYear(), 0, 1);
-
-  return Math.ceil(((temp - yearStart) / 86400000 + 1) / 7);
-};
-
-/* =====================================================
-   NORMALIZE DATABASE DATE
-===================================================== */
-
-const normalizeDate = (value) => {
-  if (!value) return "";
-
-  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return value;
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return getDateKey(date);
-};
-
-/* =====================================================
-   HOURS MANAGEMENT
-===================================================== */
-
 const HoursManagement = () => {
-  /* =====================================================
-     CURRENT DATE
-  ===================================================== */
-
   const today = new Date();
 
-  const currentYear = today.getFullYear();
+  const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1);
 
-  const currentMonth = today.getMonth() + 1;
+  const [selectedYear, setSelectedYear] = useState(today.getFullYear());
 
-  const currentWeek = getWeekNumber(today);
+  const [selectedWeek, setSelectedWeek] = useState(getISOWeek(today));
 
-  /* =====================================================
-     PREVIOUS MONTH
-  ===================================================== */
+  const [days, setDays] = useState([]);
 
-  const previousMonth = currentMonth === 1 ? 12 : currentMonth - 1;
-
-  const previousMonthYear = currentMonth === 1 ? currentYear - 1 : currentYear;
-
-  /* =====================================================
-     FILTER STATE
-
-     DEFAULT:
-     Current Month
-     Current Week
-  ===================================================== */
-
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
-
-  const [selectedYear, setSelectedYear] = useState(currentYear);
-
-  const [selectedWeek, setSelectedWeek] = useState(currentWeek);
-
-  /* =====================================================
-     ATTENDANCE
-
-     OPTIMIZED ARRAY
-
-     [
-       ["2026-08-10", 1],
-       ["2026-08-11", 0],
-       ["2026-08-12", 1]
-     ]
-
-     1 = Worked
-     0 = Not Worked
-  ===================================================== */
-
-  const [attendance, setAttendance] = useState([]);
+  const [myLeaves, setMyLeaves] = useState([]);
 
   const [loading, setLoading] = useState(false);
 
-  /* =====================================================
-     LOAD ATTENDANCE
-  ===================================================== */
+  const [saving, setSaving] = useState(false);
 
-  const loadAttendance = async () => {
+  const token = localStorage.getItem("token");
+
+  /* =========================================================
+     MONTHS
+  ========================================================= */
+
+  /* =========================================================
+   LAST 2 MONTHS
+========================================================= */
+
+  const getLastTwoMonths = () => {
+    const result = [];
+
+    for (let i = 0; i < 2; i++) {
+      const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+
+      result.push({
+        month: date.getMonth() + 1,
+        year: date.getFullYear(),
+        value: `${date.getFullYear()}-${date.getMonth() + 1}`,
+        label: date.toLocaleString("en-US", {
+          month: "long",
+          year: "numeric",
+        }),
+      });
+    }
+
+    return result;
+  };
+
+  const months = getLastTwoMonths();
+  /* =========================================================
+   GET WEEKS FOR SELECTED MONTH
+========================================================= */
+
+  const getWeeksForMonth = (year, month) => {
+    const weeks = new Set();
+
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month - 1, day);
+
+      weeks.add(getISOWeek(date));
+    }
+
+    return Array.from(weeks).sort((a, b) => a - b);
+  };
+  /* =========================================================
+     GET ISO WEEK
+  ========================================================= */
+
+  function getISOWeek(date) {
+    const tempDate = new Date(date);
+
+    tempDate.setHours(0, 0, 0, 0);
+
+    tempDate.setDate(tempDate.getDate() + 3 - ((tempDate.getDay() + 6) % 7));
+
+    const week1 = new Date(tempDate.getFullYear(), 0, 4);
+
+    return (
+      1 +
+      Math.round(
+        ((tempDate - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7,
+      )
+    );
+  }
+
+  /* =========================================================
+     GET MONDAY OF ISO WEEK
+  ========================================================= */
+
+  function getMondayOfISOWeek(week, year) {
+    const simple = new Date(year, 0, 4);
+
+    const dayOfWeek = simple.getDay() || 7;
+
+    const monday = new Date(simple);
+
+    monday.setDate(simple.getDate() - dayOfWeek + 1);
+
+    monday.setDate(monday.getDate() + (week - 1) * 7);
+
+    return monday;
+  }
+
+  /* =========================================================
+     FORMAT DATE
+  ========================================================= */
+
+  const formatDateForAPI = (date) => {
+    const year = date.getFullYear();
+
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+  };
+
+  /* =========================================================
+     FORMAT DISPLAY DATE
+  ========================================================= */
+
+  const formatDisplayDate = (date) => {
+    return `${String(date.getDate()).padStart(2, "0")}/${String(
+      date.getMonth() + 1,
+    ).padStart(2, "0")}/${date.getFullYear()}`;
+  };
+
+  /* =========================================================
+     CHECK WFH
+  ========================================================= */
+
+  const isWorkFromHome = (leaveType) => {
+    if (!leaveType) {
+      return false;
+    }
+
+    const type = String(leaveType)
+      .trim()
+      .toLowerCase()
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ");
+
+    return (
+      type === "wfh" || type === "work from home" || type === "workfromhome"
+    );
+  };
+  const getLeaveForDate = (dateString) => {
+    if (!dateString) {
+      return null;
+    }
+
+    const currentDate = String(dateString).substring(0, 10);
+
+    const leave = myLeaves.find((item) => {
+      /*
+       * WFH should NEVER lock attendance.
+       */
+      if (isWorkFromHome(item.leaveType)) {
+        return false;
+      }
+
+      if (String(item.status).toLowerCase() !== "approved") {
+        return false;
+      }
+
+      const fromDate = String(item.fromDate).substring(0, 10);
+
+      const toDate = String(item.toDate).substring(0, 10);
+
+      return currentDate >= fromDate && currentDate <= toDate;
+    });
+
+    return leave || null;
+  };
+
+  const createWeekDays = () => {
+    const monday = getMondayOfISOWeek(selectedWeek, selectedYear);
+
+    const weekDays = [];
+
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(monday);
+
+      date.setDate(monday.getDate() + i);
+
+      if (
+        date.getMonth() + 1 !== Number(selectedMonth) ||
+        date.getFullYear() !== Number(selectedYear)
+      ) {
+        continue;
+      }
+
+      const dateKey = formatDateForAPI(date);
+
+      const leave = getLeaveForDate(dateKey);
+
+      weekDays.push({
+        date: dateKey,
+
+        displayDate: formatDisplayDate(date),
+
+        day: date.toLocaleDateString("en-US", {
+          weekday: "long",
+        }),
+
+        week: selectedWeek,
+
+        worked: false,
+
+        hours: 0,
+
+        leaveLocked: Boolean(leave),
+
+        leaveType: leave?.leaveType || null,
+      });
+    }
+
+    return weekDays;
+  };
+
+  const loadMyLeaves = async () => {
+    if (!token) {
+      return [];
+    }
+
+    try {
+      const response = await fetch("/api/leave/my-leaves", {
+        method: "GET",
+
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const responseText = await response.text();
+
+      let data;
+
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        throw new Error("Invalid leave response");
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to load leaves");
+      }
+
+      const leaves = Array.isArray(data) ? data : [];
+
+      setMyLeaves(leaves);
+
+      return leaves;
+    } catch (error) {
+      console.log("LOAD LEAVES FAILED:", error);
+
+      setMyLeaves([]);
+
+      return [];
+    }
+  };
+
+  const loadHours = async () => {
+    if (!token) {
+      alert("Authentication token not found.");
+
+      return;
+    }
+
+    if (!selectedYear || !selectedMonth || !selectedWeek) {
+      return;
+    }
+
     try {
       setLoading(true);
 
-      const token = localStorage.getItem("token");
+      /*
+       * IMPORTANT:
+       * Load latest leave information
+       * before generating the week.
+       */
+      const leaves = await loadMyLeaves();
 
-      if (!token) {
-        alert("Session expired. Please login again.");
+      const url =
+        `/api/attendance?year=${selectedYear}` +
+        `&month=${selectedMonth}` +
+        `&week=${selectedWeek}`;
 
-        return;
-      }
+      console.log("Loading attendance:", url);
 
-      const params = new URLSearchParams();
+      const response = await fetch(url, {
+        method: "GET",
 
-      params.append("year", selectedYear);
-
-      if (selectedMonth !== "all") {
-        params.append("month", selectedMonth);
-      }
-
-      if (selectedWeek !== "all") {
-        params.append("week", selectedWeek);
-      }
-
-      const res = await fetch(
-        `/api/attendance/my?${params.toString()}`,
-        {
-          method: "GET",
-
-          headers: {
-            Authorization: `Bearer ${token}`,
-
-            "Content-Type": "application/json",
-          },
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-      );
+      });
 
-      const data = await res.json();
+      const responseText = await response.text();
 
-      if (!res.ok) {
-        throw new Error(data.message || "Failed to load attendance");
+      let data;
+
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        throw new Error(`Invalid server response: ${responseText}`);
       }
 
-      /* =================================================
-         OPTIMIZE RESPONSE
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            `Failed to load attendance. Status: ${response.status}`,
+        );
+      }
 
-         Instead of storing the complete object:
+      /*
+       * Create week after leaves
+       * have been loaded.
+       */
+      const weekDays = createWeekDays();
 
-         {
-           id,
-           employeeId,
-           attendanceDate,
-           worked,
-           hours,
-           ...
-         }
+      /*
+       * Attendance lookup.
+       */
+      const savedAttendance = new Map();
 
-         Store only:
+      if (Array.isArray(data)) {
+        data.forEach((record) => {
+          if (!record.attendanceDate) {
+            return;
+          }
 
-         [
-           ["2026-08-14", 1]
-         ]
-      ================================================= */
+          const dateKey = String(record.attendanceDate).substring(0, 10);
 
-      const optimizedData = Array.isArray(data)
-        ? data
-            .map((item) => {
-              const date = normalizeDate(item.attendanceDate);
+          savedAttendance.set(dateKey, record);
+        });
+      }
 
-              if (!date) {
-                return null;
-              }
+      /*
+       * Merge attendance + leave.
+       */
+      const mergedDays = weekDays.map((day) => {
+        const saved = savedAttendance.get(day.date);
 
-              return [date, item.worked ? 1 : 0];
-            })
-            .filter(Boolean)
-        : [];
+        /*
+         * Also check leave again
+         * after fetching latest leaves.
+         */
+        const leave = leaves.find((item) => {
+          if (isWorkFromHome(item.leaveType)) {
+            return false;
+          }
 
-      setAttendance(optimizedData);
+          if (String(item.status).toLowerCase() !== "approved") {
+            return false;
+          }
+
+          const fromDate = String(item.fromDate).substring(0, 10);
+
+          const toDate = String(item.toDate).substring(0, 10);
+
+          return day.date >= fromDate && day.date <= toDate;
+        });
+
+        /*
+         * No attendance saved.
+         */
+        if (!saved) {
+          return {
+            ...day,
+
+            worked: false,
+
+            hours: 0,
+
+            leaveLocked: Boolean(leave),
+
+            leaveType: leave?.leaveType || null,
+          };
+        }
+
+        const worked =
+          saved.worked === true ||
+          saved.worked === 1 ||
+          saved.worked === "1" ||
+          saved.worked === "true";
+
+        const savedHours =
+          saved.hours === null ||
+          saved.hours === undefined ||
+          saved.hours === ""
+            ? worked
+              ? 8
+              : 0
+            : Number(saved.hours);
+
+        return {
+          ...day,
+
+          id: saved.id,
+
+          /*
+           * If approved leave exists,
+           * force attendance to locked.
+           */
+          worked: leave ? false : worked,
+
+          hours: leave ? 0 : worked ? savedHours : 0,
+
+          leaveLocked: Boolean(leave),
+
+          leaveType: leave?.leaveType || null,
+        };
+      });
+
+      console.log("MERGED DAYS:", mergedDays);
+
+      setDays(mergedDays);
     } catch (error) {
-      console.error("Attendance error:", error);
+      console.log("LOAD HOURS FAILED:", error);
 
-      alert(error.message || "Failed to load attendance");
+      /*
+       * Even if attendance API
+       * fails, show week with
+       * leave information.
+       */
+      await loadMyLeaves();
+
+      setDays(createWeekDays());
     } finally {
       setLoading(false);
     }
   };
 
-  /* =====================================================
+  /* =========================================================
      LOAD WHEN FILTER CHANGES
-  ===================================================== */
+  ========================================================= */
 
   useEffect(() => {
-    loadAttendance();
-  }, [selectedYear, selectedMonth, selectedWeek]);
+    loadHours();
+  }, [selectedMonth, selectedYear, selectedWeek]);
 
-  /* =====================================================
-     ATTENDANCE LOOKUP
+  /* =========================================================
+     CHECK / UNCHECK WORKED
+  ========================================================= */
 
-     Main data remains an ARRAY.
+  const handleWorkedChange = (index) => {
+    setDays((previousDays) =>
+      previousDays.map((day, i) => {
+        if (i !== index) {
+          return day;
+        }
 
-     This object is only a temporary
-     fast lookup structure.
+        /*
+         * Leave date cannot be edited.
+         */
+        if (day.leaveLocked) {
+          return day;
+        }
 
-     Example:
+        const worked = !day.worked;
 
-     {
-       "2026-08-10": 1,
-       "2026-08-11": 0
-     }
-  ===================================================== */
+        return {
+          ...day,
 
-  const attendanceLookup = useMemo(() => {
-    const lookup = {};
+          worked,
 
-    attendance.forEach(([date, worked]) => {
-      lookup[date] = worked;
+          hours: worked ? day.hours || 8 : 0,
+        };
+      }),
+    );
+  };
+
+  /* =========================================================
+     CHANGE HOURS
+  ========================================================= */
+
+  const handleHoursChange = (index, value) => {
+    setDays((previousDays) =>
+      previousDays.map((day, i) => {
+        if (i !== index) {
+          return day;
+        }
+
+        /*
+         * Approved leave
+         * cannot be edited.
+         */
+        if (day.leaveLocked) {
+          return day;
+        }
+
+        /*
+         * Allow empty while typing.
+         */
+        if (value === "") {
+          return {
+            ...day,
+
+            hours: "",
+          };
+        }
+
+        let hours = Number(value);
+
+        if (Number.isNaN(hours)) {
+          return day;
+        }
+
+        if (hours < 0) {
+          hours = 0;
+        }
+
+        if (hours > 24) {
+          hours = 24;
+        }
+
+        return {
+          ...day,
+
+          hours,
+
+          /*
+           * Entering hours
+           * automatically marks
+           * worked.
+           */
+          worked: hours > 0 ? true : day.worked,
+        };
+      }),
+    );
+  };
+
+  /* =========================================================
+     TOTAL HOURS
+  ========================================================= */
+
+  const totalHours = useMemo(() => {
+    return days.reduce((total, day) => {
+      if (!day.worked) {
+        return total;
+      }
+
+      return total + Number(day.hours || 0);
+    }, 0);
+  }, [days]);
+
+  /* =========================================================
+     WORKED DAYS
+  ========================================================= */
+
+  const workedDays = useMemo(() => {
+    return days.filter((day) => day.worked).length;
+  }, [days]);
+
+  /* =========================================================
+     LOCKED DAYS
+  ========================================================= */
+
+  const lockedDays = useMemo(() => {
+    return days.filter((day) => day.leaveLocked).length;
+  }, [days]);
+
+  /* =========================================================
+     CURRENT WEEK
+  ========================================================= */
+
+  const handleCurrentWeek = () => {
+    const currentDate = new Date();
+
+    setSelectedMonth(currentDate.getMonth() + 1);
+
+    setSelectedYear(currentDate.getFullYear());
+
+    setSelectedWeek(getISOWeek(currentDate));
+  };
+
+  /* =========================================================
+     SUBMIT HOURS
+  ========================================================= */
+
+  const handleSubmit = async () => {
+    if (!token) {
+      alert("Authentication token not found.");
+
+      return;
+    }
+
+    if (!days.length) {
+      alert("No attendance days to submit.");
+
+      return;
+    }
+
+    /*
+     * Validate worked days.
+     */
+    const invalidDay = days.find((day) => {
+      /*
+       * Leave days are not
+       * submitted as worked.
+       */
+      if (day.leaveLocked) {
+        return false;
+      }
+
+      if (!day.worked) {
+        return false;
+      }
+
+      const hours = Number(day.hours);
+
+      return day.hours === "" || Number.isNaN(hours) || hours < 0 || hours > 24;
     });
 
-    return lookup;
-  }, [attendance]);
+    if (invalidDay) {
+      alert(
+        `Please enter valid hours for ${invalidDay.displayDate}. Hours must be between 0 and 24.`,
+      );
 
-  /* =====================================================
-     GENERATE DAYS
-  ===================================================== */
-
-  const days = useMemo(() => {
-    let startDate;
-    let endDate;
-
-    /* ================= CURRENT / SELECTED MONTH ================= */
-
-    if (selectedMonth !== "all") {
-      const month = Number(selectedMonth);
-
-      startDate = new Date(selectedYear, month - 1, 1);
-
-      endDate = new Date(selectedYear, month, 0);
-    } else {
-
-    /* ================= ALL MONTHS ================= */
-      startDate = new Date(selectedYear, 0, 1);
-
-      endDate = new Date(selectedYear, 11, 31);
+      return;
     }
 
-    const result = [];
+    /*
+     * Send every visible day.
+     *
+     * Leave days are sent as
+     * worked=false and hours=0.
+     */
+    const submitDays = days.map((day) => ({
+      date: day.date,
 
-    const current = new Date(startDate);
+      worked: day.leaveLocked ? false : Boolean(day.worked),
 
-    while (current <= endDate) {
-      const week = getWeekNumber(current);
+      hours: day.leaveLocked ? 0 : day.worked ? Number(day.hours || 0) : 0,
+    }));
 
-      if (selectedWeek === "all" || week === Number(selectedWeek)) {
-        result.push(new Date(current));
-      }
+    const payload = {
+      year: Number(selectedYear),
 
-      current.setDate(current.getDate() + 1);
-    }
+      month: Number(selectedMonth),
 
-    return result;
-  }, [selectedYear, selectedMonth, selectedWeek]);
+      week: Number(selectedWeek),
 
-  /* =====================================================
-     CHECK / UNCHECK ATTENDANCE
-  ===================================================== */
+      days: submitDays,
+    };
 
-  const toggleAttendance = async (date) => {
+    console.log("================================");
+
+    console.log("SUBMITTING ATTENDANCE");
+
+    console.log("TOTAL DAYS:", submitDays.length);
+
+    console.log(JSON.stringify(payload, null, 2));
+
+    console.log("================================");
+
     try {
-      const token = localStorage.getItem("token");
+      setSaving(true);
 
-      if (!token) {
-        alert("Session expired. Please login again.");
-
-        return;
-      }
-
-      const dateKey = getDateKey(date);
-
-      /* =================================================
-           GET EXISTING STATUS
-
-           1 = Worked
-           0 / undefined = Not Worked
-        ================================================= */
-
-      const existingWorked = attendanceLookup[dateKey];
-
-      /* =================================================
-           TOGGLE
-
-           Existing 1 → 0
-           Existing 0 → 1
-        ================================================= */
-
-      const worked = existingWorked === 1 ? false : true;
-
-      const res = await fetch("/api/attendance/mark", {
+      const response = await fetch("/api/attendance/submit", {
         method: "POST",
 
         headers: {
@@ -337,337 +670,509 @@ const HoursManagement = () => {
           Authorization: `Bearer ${token}`,
         },
 
-        body: JSON.stringify({
-          attendanceDate: dateKey,
-
-          worked: worked,
-        }),
+        body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const responseText = await response.text();
 
-      if (!res.ok) {
-        throw new Error(data.message || "Failed to update attendance");
+      let data;
+
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        throw new Error(`Invalid server response: ${responseText}`);
       }
 
+      if (!response.ok) {
+        throw new Error(
+          data.message || `Failed to submit hours. Status: ${response.status}`,
+        );
+      }
+
+      alert(data.message || "Hours submitted successfully.");
+
       /*
-          Reload attendance after update.
-        */
-
-      await loadAttendance();
+       * Reload everything from database.
+       */
+      await loadHours();
     } catch (error) {
-      console.error("Attendance update error:", error);
+      console.log("SUBMIT HOURS FAILED:", error);
 
-      alert(error.message || "Failed to update attendance");
+      alert(error.message || "Failed to submit hours.");
+    } finally {
+      setSaving(false);
     }
   };
 
-  /* =====================================================
-     TOTAL HOURS
+  const weekOptions = getWeeksForMonth(selectedYear, selectedMonth);
 
-     No need to store hours.
-
-     1 worked day = 8 hours
-  ===================================================== */
-
-  const totalHours = days.reduce((total, date) => {
-    const worked = attendanceLookup[getDateKey(date)] === 1;
-
-    return total + (worked ? 8 : 0);
-  }, 0);
-
-  /* =====================================================
-     TOTAL WORKED DAYS
-  ===================================================== */
-
-  const workedDays = days.filter(
-    (date) => attendanceLookup[getDateKey(date)] === 1,
-  ).length;
-
-  /* =====================================================
-     RESET TO CURRENT WEEK
-  ===================================================== */
-
-  const showCurrentWeek = () => {
-    setSelectedYear(currentYear);
-
-    setSelectedMonth(currentMonth);
-
-    setSelectedWeek(currentWeek);
-  };
-
-  /* =====================================================
-     MONTH OPTIONS
-
-     ONLY CURRENT + PREVIOUS MONTH
-  ===================================================== */
-
-  const monthOptions = [
-    {
-      value: currentMonth,
-      label: `${MONTHS[currentMonth - 1].name} ${currentYear}`,
-    },
-
-    {
-      value: previousMonth,
-      label: `${MONTHS[previousMonth - 1].name} ${previousMonthYear}`,
-    },
-  ];
+  /* =========================================================
+     UI
+  ========================================================= */
 
   return (
-    <div
-      style={{
-        width: "100%",
-        minHeight: "100vh",
-        padding: "30px",
-        boxSizing: "border-box",
-        background: "#f8fafc",
-      }}
-    >
-      <div
-        className="add-employee-card"
-        style={{
-          width: "100%",
-          maxWidth: "none",
-          boxSizing: "border-box",
-        }}
-      >
-        {/* =================================================
-            HEADER
-        ================================================= */}
+    <div className="hours-management-page">
+      <style>{`
 
+        * {
+          box-sizing: border-box;
+        }
+ .hours-management-page {
+          width: 100%;
+          min-height: 100vh;
+          padding: 28px 24px;
+          background: #ffffff;
+          font-family: Arial, Helvetica, sans-serif;
+          color: #111827;
+        }
+        .hours-management-header {
+          margin-bottom: 24px;
+        }
+        .hours-management-header h2 {
+          margin: 0 0 10px;
+          font-size: 28px;
+          font-weight: 700;
+          color: #111111;
+        }
+        .hours-management-header p {
+          margin: 0;
+          font-size: 15px;
+          color: #64748b;
+        }
+        .hours-filter-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr 1fr;
+          gap: 24px;
+          margin-bottom: 28px;
+        }
+  .hours-filter-group {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+      }
+        .hours-filter-group label {
+          font-size: 15px;
+          font-weight: 600;
+          color: #111827;
+        }
+        .hours-select {
+          width: 100%;
+          height: 44px;
+          padding: 0 14px;
+          border: 1px solid #d1d5db;
+          border-radius: 7px;
+          background: #ffffff;
+          color: #111827;
+          font-size: 15px;
+          outline: none;
+          cursor: pointer;
+        }
+        .hours-select:focus {
+          border-color: #2563eb;
+          box-shadow:
+            0 0 0 2px
+            rgba(37, 99, 235, 0.12);
+        }
+        .current-week-button {
+          height: 44px;
+          margin-top: 27px;
+          border: none;
+          border-radius: 7px;
+          background: #2563eb;
+          color: #ffffff;
+          font-size: 15px;
+          cursor: pointer;
+          transition: background 0.2s ease;
+        }
+        .current-week-button:hover {
+          background: #1d4ed8;
+        }
+        .summary-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr 1fr;
+          gap: 24px;
+          margin-bottom: 42px;
+        }
+        .summary-card {
+          min-height: 130px;
+          padding: 24px;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          background: #f8fafc;
+        }
+        .summary-card-title {
+          margin-bottom: 20px;
+          font-size: 16px;
+          color: #64748b;
+        }
+        .summary-card-value {
+          font-size: 28px;
+          font-weight: 700;
+          color: #111111;
+        }
+        .hours-table-wrapper {
+          width: 100%;
+          overflow-x: auto;
+        }
+        .hours-table {
+          width: 100%;
+          min-width: 800px;
+          border-collapse: collapse;
+        }
+        .hours-table th {
+          padding: 14px 12px;
+          border-bottom: 1px solid #dbe1e8;
+          text-align: center;
+          font-size: 16px;
+          font-weight: 700;
+          color: #111111;
+        }
+        .hours-table td {
+          padding: 13px 12px;
+          border-bottom: 1px solid #e5e7eb;
+          text-align: center;
+          font-size: 16px;
+          color: #111827;
+        }
+        .hours-table th:first-child,
+        .hours-table td:first-child {
+          text-align: left;
+        }
+        .hours-table tr.leave-row {
+          background: #fff7f7;
+        }
+        .worked-checkbox {
+          width: 18px;
+          height: 18px;
+          cursor: pointer;
+          accent-color: #2563eb;
+        }
+        .worked-checkbox:disabled {
+          cursor: not-allowed;
+          opacity: 0.55;
+        }
+        .hours-input {
+          width: 90px;
+          height: 38px;
+          padding: 0 10px;
+          border: 1px solid #cbd5e1;
+          border-radius: 6px;
+          text-align: center;
+          font-size: 15px;
+          outline: none;
+          background: #ffffff;
+        }
+
+        .hours-input:focus {
+          border-color: #2563eb;
+          box-shadow:
+            0 0 0 2px
+            rgba(37, 99, 235, 0.12);
+        }
+
+        .hours-input:disabled {
+          background: #f1f5f9;
+          color: #94a3b8;
+          cursor: not-allowed;
+        }
+
+        .leave-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          padding: 5px 10px;
+          border-radius: 20px;
+          background: #fee2e2;
+          color: #b91c1c;
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        .wfh-badge {
+          display: inline-flex;
+          align-items: center;
+          padding: 4px 9px;
+          border-radius: 20px;
+          background: #dbeafe;
+          color: #1d4ed8;
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        .leave-hour-value {
+          color: #94a3b8;
+          font-weight: 500;
+        }
+
+        .submit-section {
+          display: flex;
+          justify-content: flex-end;
+          margin-top: 26px;
+          padding-top: 20px;
+          border-top: 1px solid #e5e7eb;
+        }
+
+        .submit-button {
+          min-width: 170px;
+          height: 44px;
+          padding: 0 24px;
+          border: none;
+          border-radius: 7px;
+          background: #2563eb;
+          color: white;
+          font-size: 15px;
+          font-weight: 600;
+          cursor: pointer;
+          transition:
+            background 0.2s ease,
+            opacity 0.2s ease;
+        }
+
+        .submit-button:hover {
+          background: #1d4ed8;
+        }
+
+        .submit-button:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
+        }
+
+        .loading-container {
+          min-height: 300px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #64748b;
+          font-size: 15px;
+        }
+
+        .empty-week {
+          padding: 35px;
+          text-align: center;
+          color: #64748b;
+        }
+
+        @media (max-width: 900px) {
+
+          .hours-filter-row {
+            grid-template-columns: 1fr;
+            gap: 15px;
+          }
+
+          .current-week-button {
+            margin-top: 0;
+          }
+
+          .summary-row {
+            grid-template-columns: 1fr;
+            gap: 15px;
+          }
+
+        }
+
+        @media (max-width: 600px) {
+
+          .hours-management-page {
+            padding: 20px 15px;
+          }
+
+          .hours-management-header h2 {
+            font-size: 24px;
+          }
+
+          .submit-section {
+            justify-content: stretch;
+          }
+
+          .submit-button {
+            width: 100%;
+          }
+
+        }
+
+      `}</style>
+
+      <div className="hours-management-header">
         <h2>Hours Management</h2>
 
-        <p className="subtitle">
-          Mark your working days. Each checked day counts as 8 hours.
+        <p>
+          Mark your working days. Working hours are editable. Approved leave
+          dates are locked.
         </p>
+      </div>
 
-        {/* =================================================
-            FILTERS
-        ================================================= */}
+      <div className="hours-filter-group">
+        <label>Month</label>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "20px",
-            marginBottom: "30px",
+        <select
+          className="hours-select"
+          value={`${selectedYear}-${selectedMonth}`}
+          onChange={(e) => {
+            const [year, month] = e.target.value.split("-");
+
+            const newYear = Number(year);
+            const newMonth = Number(month);
+
+            setSelectedYear(newYear);
+            setSelectedMonth(newMonth);
+
+            const availableWeeks = getWeeksForMonth(newYear, newMonth);
+
+            setSelectedWeek(availableWeeks[0]);
           }}
         >
-          {/* ================= MONTH ================= */}
+          {months.map((month) => (
+            <option key={month.value} value={month.value}>
+              {month.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
-          <div className="form-field">
-            <label>Month</label>
+      <div className="hours-filter-group">
+        <label>Week</label>
 
-            <select
-              value={selectedMonth}
-              onChange={(e) => {
-                const value = Number(e.target.value);
+        <select
+          className="hours-select"
+          value={selectedWeek}
+          onChange={(e) => setSelectedWeek(Number(e.target.value))}
+        >
+          {weekOptions.map((week) => (
+            <option key={week} value={week}>
+              Week {week}
+            </option>
+          ))}
+        </select>
+      </div>
 
-                setSelectedMonth(value);
+      {/* CURRENT WEEK */}
 
-                /*
-                  If previous month is selected,
-                  use previous month's year.
-                */
+      <button
+        type="button"
+        className="current-week-button"
+        onClick={handleCurrentWeek}
+      >
+        Current Week
+      </button>
+      <div
+        className="summary-row"
+        style={{
+          marginTop: "25px",
+        }}
+      >
+        <div className="summary-card">
+          <div className="summary-card-title">Worked Days</div>
 
-                if (value === previousMonth) {
-                  setSelectedYear(previousMonthYear);
-                } else {
-                  setSelectedYear(currentYear);
-                }
+          <div className="summary-card-value">{workedDays}</div>
+        </div>
 
-                /*
-                  When month changes,
-                  show all weeks first.
-                */
+        <div className="summary-card">
+          <div className="summary-card-title">Total Hours</div>
 
-                setSelectedWeek("all");
-              }}
-            >
-              {monthOptions.map((month) => (
-                <option
-                  key={`${month.value}-${month.label}`}
-                  value={month.value}
-                >
-                  {month.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* ================= WEEK ================= */}
-
-          <div className="form-field">
-            <label>Week</label>
-
-            <select
-              value={selectedWeek}
-              onChange={(e) => setSelectedWeek(e.target.value)}
-            >
-              <option value="all">All Weeks</option>
-
-              {Array.from(
-                {
-                  length: 53,
-                },
-                (_, index) => index + 1,
-              ).map((week) => (
-                <option key={week} value={week}>
-                  Week {week}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* ================= CURRENT WEEK ================= */}
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-end",
-            }}
-          >
-            <button
-              type="button"
-              className="add-btn"
-              onClick={showCurrentWeek}
-              style={{
-                width: "100%",
-              }}
-            >
-              Current Week
-            </button>
+          <div className="summary-card-value">
+            {Number.isInteger(totalHours) ? totalHours : totalHours.toFixed(2)}{" "}
+            hrs
           </div>
         </div>
 
-        {/* =================================================
-            SUMMARY
-        ================================================= */}
+        <div className="summary-card">
+          <div className="summary-card-title">Leave Locked</div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
-            gap: "20px",
-            marginBottom: "30px",
-          }}
-        >
-          {/* ================= WORKED DAYS ================= */}
-
-          <div
-            style={{
-              padding: "20px",
-              background: "#f8fafc",
-              border: "1px solid #e5e7eb",
-              borderRadius: "10px",
-            }}
-          >
-            <span>Worked Days</span>
-
-            <h2>{workedDays}</h2>
-          </div>
-
-          {/* ================= TOTAL HOURS ================= */}
-
-          <div
-            style={{
-              padding: "20px",
-              background: "#f8fafc",
-              border: "1px solid #e5e7eb",
-              borderRadius: "10px",
-            }}
-          >
-            <span>Total Hours</span>
-
-            <h2>{totalHours} hrs</h2>
-          </div>
+          <div className="summary-card-value">{lockedDays}</div>
         </div>
+      </div>
 
-        {/* =================================================
-            TABLE
-        ================================================= */}
+      {loading ? (
+        <div className="loading-container">Loading hours...</div>
+      ) : (
+        <>
+          {days.length === 0 ? (
+            <div className="empty-week">
+              No dates available for this month and week.
+            </div>
+          ) : (
+            <div className="hours-table-wrapper">
+              <table className="hours-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
 
-        {loading ? (
-          <p>Loading attendance...</p>
-        ) : (
-          <div
-            style={{
-              width: "100%",
-              overflowX: "auto",
-            }}
-          >
-            <table
-              className="employee-table"
-              style={{
-                width: "100%",
-              }}
-            >
-              <thead>
-                <tr>
-                  <th>Date</th>
+                    <th>Day</th>
 
-                  <th>Day</th>
+                    <th>Week</th>
 
-                  <th>Week</th>
+                    <th>Status</th>
 
-                  <th>Worked</th>
+                    <th>Hours</th>
+                  </tr>
+                </thead>
 
-                  <th>Hours</th>
-                </tr>
-              </thead>
+                <tbody>
+                  {days.map((day, index) => (
+                    <tr
+                      key={day.date}
+                      className={day.leaveLocked ? "leave-row" : ""}
+                    >
+                      <td>{day.displayDate}</td>
 
-              <tbody>
-                {days.map((date) => {
-                  const key = getDateKey(date);
+                      <td>{day.day}</td>
 
-                  const worked = attendanceLookup[key] === 1;
-
-                  return (
-                    <tr key={key}>
-                      {/* DATE */}
-
-                      <td>{date.toLocaleDateString("en-IN")}</td>
-
-                      {/* DAY */}
+                      <td>Week {day.week}</td>
 
                       <td>
-                        {date.toLocaleDateString("en-IN", {
-                          weekday: "long",
-                        })}
+                        {day.leaveLocked ? (
+                          <span className="leave-badge">
+                            🔒 {day.leaveType || "On Leave"}
+                          </span>
+                        ) : (
+                          <input
+                            type="checkbox"
+                            className="worked-checkbox"
+                            checked={Boolean(day.worked)}
+                            disabled={day.leaveLocked}
+                            onChange={() => handleWorkedChange(index)}
+                          />
+                        )}
                       </td>
 
-                      {/* WEEK */}
-
-                      <td>Week {getWeekNumber(date)}</td>
-
-                      {/* CHECKBOX */}
-
                       <td>
-                        <input
-                          type="checkbox"
-                          checked={worked}
-                          onChange={() => toggleAttendance(date)}
-                        />
-                      </td>
-
-                      {/* HOURS */}
-
-                      <td>
-                        <strong>{worked ? 8 : 0} hrs</strong>
+                        {day.leaveLocked ? (
+                          <span className="leave-hour-value">—</span>
+                        ) : (
+                          <input
+                            type="number"
+                            className="hours-input"
+                            min="0"
+                            max="24"
+                            step="0.5"
+                            value={day.hours}
+                            disabled={!day.worked}
+                            onChange={(e) =>
+                              handleHoursChange(index, e.target.value)
+                            }
+                          />
+                        )}
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="submit-section">
+            <button
+              type="button"
+              className="submit-button"
+              onClick={handleSubmit}
+              disabled={saving || loading}
+            >
+              {saving ? "Submitting..." : "Submit Hours"}
+            </button>
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 };
 
 export default HoursManagement;
-
-

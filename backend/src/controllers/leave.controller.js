@@ -293,65 +293,199 @@ export const getAllLeaves = async (req, res) => {
    PUT /api/leave/:id/status
 ===================================================== */
 
+/* =====================================================
+   UPDATE LEAVE STATUS - ADMIN
+   PUT /api/leave/:id/status
+===================================================== */
+
 export const updateLeaveStatus = async (req, res) => {
+
+  let connection;
+
   try {
+
     const { id } = req.params;
     const { status } = req.body;
+
 
     /* ================= STATUS VALIDATION ================= */
 
     if (!["Approved", "Rejected"].includes(status)) {
+
       return res.status(400).json({
-        message: "Invalid leave status",
+        message:
+          "Invalid leave status",
       });
     }
 
-    /* ================= CHECK LEAVE ================= */
 
-    const [leave] = await db.query(
+    /* ================= GET LEAVE ================= */
+
+    const [leaveRows] = await db.query(
       `
-      SELECT id, status
+      SELECT
+        id,
+        employeeId,
+        leaveType,
+        fromDate,
+        toDate,
+        status
       FROM leave_requests
       WHERE id = ?
       `,
-      [id],
+      [id]
     );
 
-    if (leave.length === 0) {
+
+    if (leaveRows.length === 0) {
+
       return res.status(404).json({
-        message: "Leave request not found",
+        message:
+          "Leave request not found",
       });
     }
+
+
+    const leave =
+      leaveRows[0];
+
 
     /* ================= PREVENT REPROCESSING ================= */
 
-    if (leave[0].status === "Approved" || leave[0].status === "Rejected") {
+    if (
+      leave.status === "Approved" ||
+      leave.status === "Rejected"
+    ) {
+
       return res.status(400).json({
-        message: "This leave request has already been processed",
+        message:
+          "This leave request has already been processed",
       });
     }
 
+
+    /* =====================================================
+       CHECK WORK FROM HOME
+    ===================================================== */
+
+    const leaveType =
+      String(
+        leave.leaveType || ""
+      )
+        .trim()
+        .toLowerCase();
+
+
+    const isWorkFromHome =
+      leaveType === "work from home" ||
+      leaveType === "work-from-home" ||
+      leaveType === "wfh";
+
+
+    /* =====================================================
+       START TRANSACTION
+    ===================================================== */
+
+    connection =
+      await db.getConnection();
+
+    await connection.beginTransaction();
+
+
     /* ================= UPDATE STATUS ================= */
 
-    await db.query(
+    await connection.query(
       `
       UPDATE leave_requests
       SET status = ?
       WHERE id = ?
       `,
-      [status, id],
+      [
+        status,
+        id,
+      ]
     );
 
+
+    /* =====================================================
+       IF APPROVED AND NOT WFH:
+
+       Remove attendance records for the leave dates.
+
+       WFH DOES NOT remove attendance.
+    ===================================================== */
+
+    if (
+      status === "Approved" &&
+      !isWorkFromHome
+    ) {
+
+      await connection.query(
+        `
+        DELETE FROM attendance
+        WHERE employeeId = ?
+          AND attendanceDate BETWEEN ? AND ?
+        `,
+        [
+          leave.employeeId,
+          leave.fromDate,
+          leave.toDate,
+        ]
+      );
+    }
+
+
+    await connection.commit();
+
+
     return res.status(200).json({
-      message: `Leave ${status.toLowerCase()} successfully`,
+
+      message:
+        `Leave ${status.toLowerCase()} successfully`,
+
       status,
+
+      attendanceLocked:
+        status === "Approved" &&
+        !isWorkFromHome,
+
+      workFromHome:
+        isWorkFromHome,
+
     });
+
   } catch (error) {
-    console.error("UPDATE LEAVE STATUS ERROR:", error);
+
+    if (connection) {
+
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+
+        console.error(
+          "ROLLBACK ERROR:",
+          rollbackError
+        );
+      }
+    }
+
+
+    console.error(
+      "UPDATE LEAVE STATUS ERROR:",
+      error
+    );
+
 
     return res.status(500).json({
-      message: "Server error",
+      message:
+        "Server error",
     });
+
+  } finally {
+
+    if (connection) {
+      connection.release();
+    }
   }
 };
 

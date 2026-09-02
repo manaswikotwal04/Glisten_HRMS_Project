@@ -27,7 +27,8 @@ import ApplyLeave from "./components/ApplyLeave";
 import AddSalaryStructure from "./components/AddSalaryStructure";
 import GeneratePayslip from "./components/GeneratePayslips";
 import PayrollList from "./components/PayrollList";
-
+import AdminDocuments from "./components/AdminDocuments";
+import EmployeeDocuments from "./components/EmployeeDocuments";
 import ChangePassword from "./components/changepassword";
 import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
@@ -152,6 +153,19 @@ const appRouter = createBrowserRouter(
             </RequireRole>
           ),
         },
+      {
+  path: "documents",
+  element:
+    localStorage.getItem("role") === "admin" ? (
+      <RequireRole role="admin">
+        <AdminDocuments />
+      </RequireRole>
+    ) : (
+      <RequireRole role="employee">
+        <EmployeeDocuments />
+      </RequireRole>
+    ),
+},
         {
   path: "hours-management",
   element: (
@@ -159,7 +173,7 @@ const appRouter = createBrowserRouter(
       <HoursManagement />
     </RequireRole>
   )
-},
+        },
 
         {
           path: "employees/edit/:employeeId",
