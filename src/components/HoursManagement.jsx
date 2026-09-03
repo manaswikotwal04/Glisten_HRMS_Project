@@ -1,42 +1,252 @@
 import React, { useEffect, useMemo, useState } from "react";
 
+/* =========================================================
+   DATE HELPERS
+   ========================================================= */
+
+const formatDateKey = (year, month, day) => {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(
+    2,
+    "0",
+  )}`;
+};
+
+const normalizeApiDate = (value) => {
+  if (!value) return "";
+
+  const raw = String(value).trim();
+
+  // DATE-only value: keep it exactly as it is.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  const date = new Date(raw);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const result = {};
+
+  parts.forEach((part) => {
+    if (part.type !== "literal") {
+      result[part.type] = part.value;
+    }
+  });
+
+  if (!result.year || !result.month || !result.day) {
+    return "";
+  }
+
+  return `${result.year}-${result.month}-${result.day}`;
+};
+
+/*
+  Parse YYYY-MM-DD WITHOUT UTC conversion.
+*/
+const parseDateKey = (dateKey) => {
+  const [year, month, day] = String(dateKey).split("-").map(Number);
+
+  return new Date(year, month - 1, day);
+};
+
+/*
+  Add one local calendar day.
+*/
+const addOneDay = (dateKey) => {
+  const date = parseDateKey(dateKey);
+
+  date.setDate(date.getDate() + 1);
+
+  return formatDateKey(date.getFullYear(), date.getMonth() + 1, date.getDate());
+};
+
+/* =========================================================
+   ISO WEEK
+   ========================================================= */
+
+const getISOWeek = (date) => {
+  const tempDate = new Date(date);
+
+  tempDate.setHours(0, 0, 0, 0);
+
+  // Thursday determines ISO week year.
+  tempDate.setDate(tempDate.getDate() + 3 - ((tempDate.getDay() + 6) % 7));
+
+  const week1 = new Date(tempDate.getFullYear(), 0, 4);
+
+  return (
+    1 +
+    Math.round(
+      ((tempDate - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7,
+    )
+  );
+};
+
+/* =========================================================
+   MONDAY OF ISO WEEK
+   ========================================================= */
+
+const getMondayOfISOWeek = (week, year) => {
+  const simple = new Date(year, 0, 4);
+
+  const dayOfWeek = simple.getDay() || 7;
+
+  const monday = new Date(simple);
+
+  monday.setDate(simple.getDate() - dayOfWeek + 1);
+
+  monday.setDate(monday.getDate() + (week - 1) * 7);
+
+  monday.setHours(0, 0, 0, 0);
+
+  return monday;
+};
+
+/* =========================================================
+   WEEKS AVAILABLE IN A MONTH
+   ========================================================= */
+
+const getWeeksForMonth = (year, month) => {
+  const weeks = new Set();
+
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month - 1, day);
+
+    weeks.add(getISOWeek(date));
+  }
+
+  return Array.from(weeks).sort((a, b) => a - b);
+};
+
+/* =========================================================
+   LEAVE HELPERS
+   ========================================================= */
+
+const getLeaveType = (leave) => {
+  return String(
+    leave?.leaveType || leave?.type || leave?.leave_type || "",
+  ).trim();
+};
+
+/*
+  Only APPROVED normal leaves lock attendance.
+
+  WFH must NEVER lock attendance.
+*/
+const isLockingLeave = (leave) => {
+  const status = String(leave?.status || "")
+    .toLowerCase()
+    .trim();
+
+  const type = getLeaveType(leave).toLowerCase().trim();
+
+  if (status !== "approved") {
+    return false;
+  }
+
+  if (type.includes("wfh") || type.includes("work from home")) {
+    return false;
+  }
+
+  return true;
+};
+
+/*
+  Build:
+  {
+    "2026-08-25": "Casual Leave",
+    "2026-08-26": "Casual Leave",
+    "2026-08-27": "Casual Leave"
+  }
+*/
+const buildLockedLeaveMap = (leaves) => {
+  const lockedMap = {};
+
+  if (!Array.isArray(leaves)) {
+    return lockedMap;
+  }
+
+  leaves.forEach((leave) => {
+    if (!isLockingLeave(leave)) {
+      return;
+    }
+
+    const fromDate = normalizeApiDate(leave.fromDate);
+    const toDate = normalizeApiDate(leave.toDate);
+
+    if (!fromDate || !toDate) {
+      return;
+    }
+
+    const leaveType = getLeaveType(leave) || "Approved Leave";
+
+    let currentDate = fromDate;
+
+    /*
+      Expand inclusive date range.
+      Example:
+      25 -> 26 -> 27
+    */
+    while (currentDate <= toDate) {
+      lockedMap[currentDate] = leaveType;
+
+      if (currentDate === toDate) {
+        break;
+      }
+
+      currentDate = addOneDay(currentDate);
+    }
+  });
+
+  return lockedMap;
+};
+
+/* =========================================================
+   COMPONENT
+   ========================================================= */
+
 const HoursManagement = () => {
   const today = new Date();
 
-  const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1);
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth() + 1;
+  const currentWeek = getISOWeek(today);
 
-  const [selectedYear, setSelectedYear] = useState(today.getFullYear());
+  /*
+    Current month + previous month only.
 
-  const [selectedWeek, setSelectedWeek] = useState(getISOWeek(today));
+    Example:
+    September 2026
+    August 2026
 
-  const [days, setDays] = useState([]);
+    January automatically becomes:
+    January 2026
+    December 2025
+  */
+  const monthOptions = useMemo(() => {
+    const options = [];
 
-  const [myLeaves, setMyLeaves] = useState([]);
+    for (let offset = 0; offset < 2; offset++) {
+      const date = new Date(currentYear, currentMonth - 1 - offset, 1);
 
-  const [loading, setLoading] = useState(false);
-
-  const [saving, setSaving] = useState(false);
-
-  const token = localStorage.getItem("token");
-
-  /* =========================================================
-     MONTHS
-  ========================================================= */
-
-  /* =========================================================
-   LAST 2 MONTHS
-========================================================= */
-
-  const getLastTwoMonths = () => {
-    const result = [];
-
-    for (let i = 0; i < 2; i++) {
-      const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
-
-      result.push({
-        month: date.getMonth() + 1,
+      options.push({
+        value: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+          2,
+          "0",
+        )}`,
         year: date.getFullYear(),
-        value: `${date.getFullYear()}-${date.getMonth() + 1}`,
+        month: date.getMonth() + 1,
         label: date.toLocaleString("en-US", {
           month: "long",
           year: "numeric",
@@ -44,140 +254,72 @@ const HoursManagement = () => {
       });
     }
 
-    return result;
-  };
+    return options;
+  }, [currentYear, currentMonth]);
 
-  const months = getLastTwoMonths();
+  /*
+    Selected period:
+    YYYY-MM
+  */
+  const [selectedPeriod, setSelectedPeriod] = useState(
+    `${currentYear}-${String(currentMonth).padStart(2, "0")}`,
+  );
+
+  const [selectedWeek, setSelectedWeek] = useState(currentWeek);
+
+  const [days, setDays] = useState([]);
+
+  const [loading, setLoading] = useState(false);
+
+  const [saving, setSaving] = useState(false);
+
+  const [leaveMap, setLeaveMap] = useState({});
+
+  const token = localStorage.getItem("token");
+
   /* =========================================================
-   GET WEEKS FOR SELECTED MONTH
-========================================================= */
+     SELECTED YEAR / MONTH
+  ========================================================= */
 
-  const getWeeksForMonth = (year, month) => {
-    const weeks = new Set();
+  const [selectedYear, selectedMonth] = selectedPeriod.split("-").map(Number);
 
-    const daysInMonth = new Date(year, month, 0).getDate();
+  /* =========================================================
+     AVAILABLE WEEKS FOR SELECTED MONTH
+  ========================================================= */
 
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month - 1, day);
+  const availableWeeks = useMemo(() => {
+    return getWeeksForMonth(selectedYear, selectedMonth);
+  }, [selectedYear, selectedMonth]);
 
-      weeks.add(getISOWeek(date));
+  /* =========================================================
+     KEEP SELECTED WEEK VALID WHEN MONTH CHANGES
+  ========================================================= */
+
+  useEffect(() => {
+    if (!availableWeeks.length) {
+      return;
     }
 
-    return Array.from(weeks).sort((a, b) => a - b);
-  };
-  /* =========================================================
-     GET ISO WEEK
-  ========================================================= */
-
-  function getISOWeek(date) {
-    const tempDate = new Date(date);
-
-    tempDate.setHours(0, 0, 0, 0);
-
-    tempDate.setDate(tempDate.getDate() + 3 - ((tempDate.getDay() + 6) % 7));
-
-    const week1 = new Date(tempDate.getFullYear(), 0, 4);
-
-    return (
-      1 +
-      Math.round(
-        ((tempDate - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7,
-      )
-    );
-  }
+    if (!availableWeeks.includes(Number(selectedWeek))) {
+      setSelectedWeek(availableWeeks[availableWeeks.length - 1]);
+    }
+  }, [selectedYear, selectedMonth, availableWeeks, selectedWeek]);
 
   /* =========================================================
-     GET MONDAY OF ISO WEEK
+     CREATE WEEK DAYS
   ========================================================= */
 
-  function getMondayOfISOWeek(week, year) {
-    const simple = new Date(year, 0, 4);
-
-    const dayOfWeek = simple.getDay() || 7;
-
-    const monday = new Date(simple);
-
-    monday.setDate(simple.getDate() - dayOfWeek + 1);
-
-    monday.setDate(monday.getDate() + (week - 1) * 7);
-
-    return monday;
-  }
-
-  /* =========================================================
-     FORMAT DATE
-  ========================================================= */
-
-  const formatDateForAPI = (date) => {
-    const year = date.getFullYear();
-
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-
-    const day = String(date.getDate()).padStart(2, "0");
-
-    return `${year}-${month}-${day}`;
-  };
-
-  /* =========================================================
-     FORMAT DISPLAY DATE
-  ========================================================= */
-
-  const formatDisplayDate = (date) => {
-    return `${String(date.getDate()).padStart(2, "0")}/${String(
-      date.getMonth() + 1,
-    ).padStart(2, "0")}/${date.getFullYear()}`;
-  };
-
-  /* =========================================================
-     CHECK WFH
-  ========================================================= */
-
-  const isWorkFromHome = (leaveType) => {
-    if (!leaveType) {
-      return false;
+  const createWeekDays = (
+    yearValue = selectedYear,
+    monthValue = selectedMonth,
+    weekValue = selectedWeek,
+    currentLeaveMap = leaveMap,
+  ) => {
+    if (!weekValue) {
+      return [];
     }
 
-    const type = String(leaveType)
-      .trim()
-      .toLowerCase()
-      .replace(/[-_]+/g, " ")
-      .replace(/\s+/g, " ");
-
-    return (
-      type === "wfh" || type === "work from home" || type === "workfromhome"
-    );
-  };
-  const getLeaveForDate = (dateString) => {
-    if (!dateString) {
-      return null;
-    }
-
-    const currentDate = String(dateString).substring(0, 10);
-
-    const leave = myLeaves.find((item) => {
-      /*
-       * WFH should NEVER lock attendance.
-       */
-      if (isWorkFromHome(item.leaveType)) {
-        return false;
-      }
-
-      if (String(item.status).toLowerCase() !== "approved") {
-        return false;
-      }
-
-      const fromDate = String(item.fromDate).substring(0, 10);
-
-      const toDate = String(item.toDate).substring(0, 10);
-
-      return currentDate >= fromDate && currentDate <= toDate;
-    });
-
-    return leave || null;
-  };
-
-  const createWeekDays = () => {
-    const monday = getMondayOfISOWeek(selectedWeek, selectedYear);
+    const monday = getMondayOfISOWeek(Number(weekValue), Number(yearValue));
 
     const weekDays = [];
 
@@ -186,91 +328,109 @@ const HoursManagement = () => {
 
       date.setDate(monday.getDate() + i);
 
+      /*
+        IMPORTANT:
+        Only show dates belonging to selected month/year.
+
+        Therefore:
+        Week 35 August 2026:
+        24,25,26,27,28,29,30
+
+        Week crossing month:
+        only dates from selected month are displayed.
+      */
       if (
-        date.getMonth() + 1 !== Number(selectedMonth) ||
-        date.getFullYear() !== Number(selectedYear)
+        date.getFullYear() !== Number(yearValue) ||
+        date.getMonth() + 1 !== Number(monthValue)
       ) {
         continue;
       }
 
-      const dateKey = formatDateForAPI(date);
+      const dateKey = formatDateKey(
+        date.getFullYear(),
+        date.getMonth() + 1,
+        date.getDate(),
+      );
 
-      const leave = getLeaveForDate(dateKey);
+      const lockingLeave = currentLeaveMap[dateKey];
 
       weekDays.push({
         date: dateKey,
 
-        displayDate: formatDisplayDate(date),
+        displayDate: `${String(date.getDate()).padStart(2, "0")}/${String(
+          date.getMonth() + 1,
+        ).padStart(2, "0")}/${date.getFullYear()}`,
 
         day: date.toLocaleDateString("en-US", {
           weekday: "long",
         }),
 
-        week: selectedWeek,
+        week: getISOWeek(date),
 
         worked: false,
 
         hours: 0,
 
-        leaveLocked: Boolean(leave),
+        /*
+          Approved normal leave = locked.
+        */
+        locked: Boolean(lockingLeave),
 
-        leaveType: leave?.leaveType || null,
+        leaveType: lockingLeave || "",
       });
     }
 
     return weekDays;
   };
 
-  const loadMyLeaves = async () => {
+  /* =========================================================
+     LOAD LEAVES
+  ========================================================= */
+
+  const loadLeaves = async () => {
     if (!token) {
-      return [];
+      throw new Error("Authentication token not found.");
     }
+
+    const response = await fetch("/api/leave/my-leaves", {
+      method: "GET",
+
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    const responseText = await response.text();
+
+    let data;
 
     try {
-      const response = await fetch("/api/leave/my-leaves", {
-        method: "GET",
-
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const responseText = await response.text();
-
-      let data;
-
-      try {
-        data = JSON.parse(responseText);
-      } catch {
-        throw new Error("Invalid leave response");
-      }
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to load leaves");
-      }
-
-      const leaves = Array.isArray(data) ? data : [];
-
-      setMyLeaves(leaves);
-
-      return leaves;
-    } catch (error) {
-      console.log("LOAD LEAVES FAILED:", error);
-
-      setMyLeaves([]);
-
-      return [];
+      data = JSON.parse(responseText);
+    } catch {
+      throw new Error(`Invalid leave response (${response.status})`);
     }
+
+    if (!response.ok) {
+      throw new Error(
+        data?.message || `Failed to load leaves. Status: ${response.status}`,
+      );
+    }
+
+    const lockedMap = buildLockedLeaveMap(data);
+
+    setLeaveMap(lockedMap);
+
+    return lockedMap;
   };
+
+  /* =========================================================
+     LOAD ATTENDANCE + LEAVES
+  ========================================================= */
 
   const loadHours = async () => {
     if (!token) {
       alert("Authentication token not found.");
-
-      return;
-    }
-
-    if (!selectedYear || !selectedMonth || !selectedWeek) {
       return;
     }
 
@@ -278,97 +438,106 @@ const HoursManagement = () => {
       setLoading(true);
 
       /*
-       * IMPORTANT:
-       * Load latest leave information
-       * before generating the week.
-       */
-      const leaves = await loadMyLeaves();
+        Load leaves first.
+        This is important because the generated days
+        need to know which dates are locked.
+      */
+      let currentLeaveMap = {};
+
+      try {
+        currentLeaveMap = await loadLeaves();
+      } catch (leaveError) {
+        console.log("LOAD LEAVES FAILED:", leaveError);
+
+        /*
+          Do not stop attendance from loading
+          if leave API temporarily fails.
+        */
+
+        currentLeaveMap = {};
+        setLeaveMap({});
+      }
+
+      const weekDays = createWeekDays(
+        selectedYear,
+        selectedMonth,
+        selectedWeek,
+        currentLeaveMap,
+      );
 
       const url =
         `/api/attendance?year=${selectedYear}` +
         `&month=${selectedMonth}` +
         `&week=${selectedWeek}`;
 
-      console.log("Loading attendance:", url);
+      console.log("Loading attendance from:", url);
 
       const response = await fetch(url, {
         method: "GET",
 
         headers: {
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
       });
 
       const responseText = await response.text();
+
+      console.log("Attendance response status:", response.status);
 
       let data;
 
       try {
         data = JSON.parse(responseText);
       } catch {
-        throw new Error(`Invalid server response: ${responseText}`);
+        throw new Error(
+          `Server returned invalid response (${response.status}): ${responseText}`,
+        );
       }
 
       if (!response.ok) {
         throw new Error(
-          data.message ||
+          data?.message ||
             `Failed to load attendance. Status: ${response.status}`,
         );
       }
 
-      /*
-       * Create week after leaves
-       * have been loaded.
-       */
-      const weekDays = createWeekDays();
+      const savedAttendance = Array.isArray(data) ? data : [];
 
       /*
-       * Attendance lookup.
-       */
-      const savedAttendance = new Map();
+        Make fast lookup:
+        {
+          "2026-08-25": {...}
+        }
+      */
+      const attendanceLookup = {};
 
-      if (Array.isArray(data)) {
-        data.forEach((record) => {
-          if (!record.attendanceDate) {
-            return;
-          }
+      savedAttendance.forEach((item) => {
+        const normalizedDate = normalizeApiDate(item.attendanceDate);
 
-          const dateKey = String(record.attendanceDate).substring(0, 10);
+        if (!normalizedDate) {
+          return;
+        }
 
-          savedAttendance.set(dateKey, record);
-        });
-      }
+        attendanceLookup[normalizedDate] = item;
+      });
 
       /*
-       * Merge attendance + leave.
-       */
+        Merge attendance with generated days.
+
+        LOCKED LEAVE ALWAYS WINS.
+
+        Even if old attendance exists for
+        an approved leave date, we display:
+
+        worked = false
+        hours = 0
+        locked = true
+      */
       const mergedDays = weekDays.map((day) => {
-        const saved = savedAttendance.get(day.date);
+        const saved = attendanceLookup[day.date];
 
-        /*
-         * Also check leave again
-         * after fetching latest leaves.
-         */
-        const leave = leaves.find((item) => {
-          if (isWorkFromHome(item.leaveType)) {
-            return false;
-          }
-
-          if (String(item.status).toLowerCase() !== "approved") {
-            return false;
-          }
-
-          const fromDate = String(item.fromDate).substring(0, 10);
-
-          const toDate = String(item.toDate).substring(0, 10);
-
-          return day.date >= fromDate && day.date <= toDate;
-        });
-
-        /*
-         * No attendance saved.
-         */
-        if (!saved) {
+        if (day.locked) {
           return {
             ...day,
 
@@ -376,60 +545,52 @@ const HoursManagement = () => {
 
             hours: 0,
 
-            leaveLocked: Boolean(leave),
+            locked: true,
 
-            leaveType: leave?.leaveType || null,
+            leaveType:
+              currentLeaveMap[day.date] || day.leaveType || "Approved Leave",
           };
         }
 
-        const worked =
-          saved.worked === true ||
-          saved.worked === 1 ||
-          saved.worked === "1" ||
-          saved.worked === "true";
+        if (saved) {
+          return {
+            ...day,
 
-        const savedHours =
-          saved.hours === null ||
-          saved.hours === undefined ||
-          saved.hours === ""
-            ? worked
-              ? 8
-              : 0
-            : Number(saved.hours);
+            worked:
+              saved.worked === true ||
+              saved.worked === 1 ||
+              saved.worked === "1" ||
+              saved.worked === "true",
 
-        return {
-          ...day,
+            hours: Number(saved.hours || 0),
 
-          id: saved.id,
+            locked: false,
 
-          /*
-           * If approved leave exists,
-           * force attendance to locked.
-           */
-          worked: leave ? false : worked,
+            leaveType: "",
+          };
+        }
 
-          hours: leave ? 0 : worked ? savedHours : 0,
-
-          leaveLocked: Boolean(leave),
-
-          leaveType: leave?.leaveType || null,
-        };
+        return day;
       });
 
-      console.log("MERGED DAYS:", mergedDays);
-
       setDays(mergedDays);
+
+      console.log("FINAL DAYS:", mergedDays);
     } catch (error) {
       console.log("LOAD HOURS FAILED:", error);
 
       /*
-       * Even if attendance API
-       * fails, show week with
-       * leave information.
-       */
-      await loadMyLeaves();
+        Even if attendance fails,
+        keep leave locks visible.
+      */
+      const fallbackDays = createWeekDays(
+        selectedYear,
+        selectedMonth,
+        selectedWeek,
+        leaveMap,
+      );
 
-      setDays(createWeekDays());
+      setDays(fallbackDays);
     } finally {
       setLoading(false);
     }
@@ -441,7 +602,57 @@ const HoursManagement = () => {
 
   useEffect(() => {
     loadHours();
-  }, [selectedMonth, selectedYear, selectedWeek]);
+  }, [selectedPeriod, selectedWeek]);
+
+  /* =========================================================
+     CHANGE MONTH
+  ========================================================= */
+
+  const handlePeriodChange = (event) => {
+    const newPeriod = event.target.value;
+
+    setSelectedPeriod(newPeriod);
+
+    const [newYear, newMonth] = newPeriod.split("-").map(Number);
+
+    const weeks = getWeeksForMonth(newYear, newMonth);
+
+    /*
+      If selecting current month,
+      keep current week if available.
+    */
+    if (
+      newYear === currentYear &&
+      newMonth === currentMonth &&
+      weeks.includes(currentWeek)
+    ) {
+      setSelectedWeek(currentWeek);
+    } else if (weeks.length) {
+      /*
+        For previous month, select the latest
+        available week in that month.
+      */
+      setSelectedWeek(weeks[weeks.length - 1]);
+    }
+  };
+
+  /* =========================================================
+     CURRENT WEEK
+  ========================================================= */
+
+  const handleCurrentWeek = () => {
+    const currentDate = new Date();
+
+    const year = currentDate.getFullYear();
+
+    const month = currentDate.getMonth() + 1;
+
+    const week = getISOWeek(currentDate);
+
+    setSelectedPeriod(`${year}-${String(month).padStart(2, "0")}`);
+
+    setSelectedWeek(week);
+  };
 
   /* =========================================================
      CHECK / UNCHECK WORKED
@@ -455,9 +666,9 @@ const HoursManagement = () => {
         }
 
         /*
-         * Leave date cannot be edited.
-         */
-        if (day.leaveLocked) {
+          Approved leave cannot be changed.
+        */
+        if (day.locked) {
           return day;
         }
 
@@ -486,20 +697,15 @@ const HoursManagement = () => {
         }
 
         /*
-         * Approved leave
-         * cannot be edited.
-         */
-        if (day.leaveLocked) {
+          Approved leave cannot be changed.
+        */
+        if (day.locked) {
           return day;
         }
 
-        /*
-         * Allow empty while typing.
-         */
         if (value === "") {
           return {
             ...day,
-
             hours: "",
           };
         }
@@ -523,11 +729,6 @@ const HoursManagement = () => {
 
           hours,
 
-          /*
-           * Entering hours
-           * automatically marks
-           * worked.
-           */
           worked: hours > 0 ? true : day.worked,
         };
       }),
@@ -561,22 +762,8 @@ const HoursManagement = () => {
   ========================================================= */
 
   const lockedDays = useMemo(() => {
-    return days.filter((day) => day.leaveLocked).length;
+    return days.filter((day) => day.locked).length;
   }, [days]);
-
-  /* =========================================================
-     CURRENT WEEK
-  ========================================================= */
-
-  const handleCurrentWeek = () => {
-    const currentDate = new Date();
-
-    setSelectedMonth(currentDate.getMonth() + 1);
-
-    setSelectedYear(currentDate.getFullYear());
-
-    setSelectedWeek(getISOWeek(currentDate));
-  };
 
   /* =========================================================
      SUBMIT HOURS
@@ -589,32 +776,48 @@ const HoursManagement = () => {
       return;
     }
 
-    if (!days.length) {
-      alert("No attendance days to submit.");
+    /*
+      =======================================================
+      VERY IMPORTANT FIX
+      =======================================================
+
+      NEVER submit approved leave dates.
+
+      Example:
+
+      24 Aug -> editable
+      25 Aug -> approved leave -> DO NOT SEND
+      26 Aug -> approved leave -> DO NOT SEND
+      27 Aug -> approved leave -> DO NOT SEND
+      28 Aug -> editable
+
+      Backend therefore receives only:
+
+      24 Aug
+      28 Aug
+      =======================================================
+    */
+
+    const editableDays = days.filter((day) => !day.locked);
+
+    if (editableDays.length === 0) {
+      alert("All displayed dates are locked by approved leave.");
 
       return;
     }
 
-    /*
-     * Validate worked days.
-     */
-    const invalidDay = days.find((day) => {
-      /*
-       * Leave days are not
-       * submitted as worked.
-       */
-      if (day.leaveLocked) {
-        return false;
-      }
+    /* =====================================================
+       VALIDATE ONLY EDITABLE DAYS
+    ===================================================== */
 
-      if (!day.worked) {
-        return false;
-      }
-
-      const hours = Number(day.hours);
-
-      return day.hours === "" || Number.isNaN(hours) || hours < 0 || hours > 24;
-    });
+    const invalidDay = editableDays.find(
+      (day) =>
+        day.worked &&
+        (day.hours === "" ||
+          Number(day.hours) < 0 ||
+          Number(day.hours) > 24 ||
+          Number.isNaN(Number(day.hours))),
+    );
 
     if (invalidDay) {
       alert(
@@ -624,18 +827,16 @@ const HoursManagement = () => {
       return;
     }
 
-    /*
-     * Send every visible day.
-     *
-     * Leave days are sent as
-     * worked=false and hours=0.
-     */
-    const submitDays = days.map((day) => ({
+    /* =====================================================
+       BUILD PAYLOAD ONLY FROM EDITABLE DAYS
+    ===================================================== */
+
+    const submitDays = editableDays.map((day) => ({
       date: day.date,
 
-      worked: day.leaveLocked ? false : Boolean(day.worked),
+      worked: Boolean(day.worked),
 
-      hours: day.leaveLocked ? 0 : day.worked ? Number(day.hours || 0) : 0,
+      hours: day.worked ? Number(day.hours || 0) : 0,
     }));
 
     const payload = {
@@ -648,15 +849,21 @@ const HoursManagement = () => {
       days: submitDays,
     };
 
-    console.log("================================");
+    console.log("SUBMIT PAYLOAD:", payload);
 
-    console.log("SUBMITTING ATTENDANCE");
+    /*
+      Extra frontend protection:
+      never allow locked date into payload.
+    */
+    const hasLockedDateInPayload = payload.days.some((submittedDay) =>
+      days.some((day) => day.date === submittedDay.date && day.locked),
+    );
 
-    console.log("TOTAL DAYS:", submitDays.length);
+    if (hasLockedDateInPayload) {
+      alert("Approved leave dates cannot be submitted.");
 
-    console.log(JSON.stringify(payload, null, 2));
-
-    console.log("================================");
+      return;
+    }
 
     try {
       setSaving(true);
@@ -675,36 +882,47 @@ const HoursManagement = () => {
 
       const responseText = await response.text();
 
+      console.log("SUBMIT STATUS:", response.status);
+
+      console.log("SUBMIT RESPONSE:", responseText);
+
       let data;
 
       try {
         data = JSON.parse(responseText);
       } catch {
-        throw new Error(`Invalid server response: ${responseText}`);
+        throw new Error(
+          `Server returned invalid response (${response.status}): ${responseText}`,
+        );
       }
 
       if (!response.ok) {
         throw new Error(
-          data.message || `Failed to submit hours. Status: ${response.status}`,
+          data?.message || `Failed to submit hours. Status: ${response.status}`,
         );
       }
 
-      alert(data.message || "Hours submitted successfully.");
+      alert(data?.message || "Hours submitted successfully.");
 
       /*
-       * Reload everything from database.
-       */
+        Reload after successful save.
+
+        This also reloads leave dates and keeps
+        approved leave locked.
+      */
       await loadHours();
     } catch (error) {
+      /*
+        Use console.log instead of console.error
+        to avoid Parcel development overlay.
+      */
       console.log("SUBMIT HOURS FAILED:", error);
 
-      alert(error.message || "Failed to submit hours.");
+      alert(error?.message || "Failed to submit hours.");
     } finally {
       setSaving(false);
     }
   };
-
-  const weekOptions = getWeeksForMonth(selectedYear, selectedMonth);
 
   /* =========================================================
      UI
@@ -713,48 +931,55 @@ const HoursManagement = () => {
   return (
     <div className="hours-management-page">
       <style>{`
-
         * {
           box-sizing: border-box;
         }
- .hours-management-page {
+
+        .hours-management-page {
           width: 100%;
-          min-height: 100vh;
+          min-height: 100%;
           padding: 28px 24px;
           background: #ffffff;
           font-family: Arial, Helvetica, sans-serif;
           color: #111827;
         }
+
         .hours-management-header {
           margin-bottom: 24px;
         }
+
         .hours-management-header h2 {
           margin: 0 0 10px;
           font-size: 28px;
           font-weight: 700;
           color: #111111;
         }
+
         .hours-management-header p {
           margin: 0;
           font-size: 15px;
           color: #64748b;
         }
+
         .hours-filter-row {
           display: grid;
           grid-template-columns: 1fr 1fr 1fr;
           gap: 24px;
           margin-bottom: 28px;
         }
-  .hours-filter-group {
+
+        .hours-filter-group {
           display: flex;
           flex-direction: column;
           gap: 8px;
-      }
+        }
+
         .hours-filter-group label {
           font-size: 15px;
           font-weight: 600;
           color: #111827;
         }
+
         .hours-select {
           width: 100%;
           height: 44px;
@@ -767,12 +992,12 @@ const HoursManagement = () => {
           outline: none;
           cursor: pointer;
         }
+
         .hours-select:focus {
           border-color: #2563eb;
-          box-shadow:
-            0 0 0 2px
-            rgba(37, 99, 235, 0.12);
+          box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
         }
+
         .current-week-button {
           height: 44px;
           margin-top: 27px;
@@ -784,41 +1009,53 @@ const HoursManagement = () => {
           cursor: pointer;
           transition: background 0.2s ease;
         }
+
         .current-week-button:hover {
           background: #1d4ed8;
         }
+
         .summary-row {
           display: grid;
           grid-template-columns: 1fr 1fr 1fr;
           gap: 24px;
           margin-bottom: 42px;
         }
+
         .summary-card {
-          min-height: 130px;
-          padding: 24px;
+          min-height: 140px;
+          padding: 28px 24px;
           border: 1px solid #e2e8f0;
           border-radius: 10px;
           background: #f8fafc;
         }
+
         .summary-card-title {
-          margin-bottom: 20px;
-          font-size: 16px;
-          color: #64748b;
+          margin-bottom: 22px;
+          font-size: 18px;
+          color: #111827;
         }
+
         .summary-card-value {
           font-size: 28px;
           font-weight: 700;
           color: #111111;
         }
+
+        .summary-card-value.locked-value {
+          color: #b45309;
+        }
+
         .hours-table-wrapper {
           width: 100%;
           overflow-x: auto;
         }
+
         .hours-table {
           width: 100%;
-          min-width: 800px;
+          min-width: 850px;
           border-collapse: collapse;
         }
+
         .hours-table th {
           padding: 14px 12px;
           border-bottom: 1px solid #dbe1e8;
@@ -827,6 +1064,7 @@ const HoursManagement = () => {
           font-weight: 700;
           color: #111111;
         }
+
         .hours-table td {
           padding: 13px 12px;
           border-bottom: 1px solid #e5e7eb;
@@ -834,23 +1072,28 @@ const HoursManagement = () => {
           font-size: 16px;
           color: #111827;
         }
+
         .hours-table th:first-child,
         .hours-table td:first-child {
           text-align: left;
         }
+
         .hours-table tr.leave-row {
-          background: #fff7f7;
+          background: #fff7ed;
         }
+
         .worked-checkbox {
-          width: 18px;
-          height: 18px;
+          width: 17px;
+          height: 17px;
           cursor: pointer;
           accent-color: #2563eb;
         }
+
         .worked-checkbox:disabled {
           cursor: not-allowed;
-          opacity: 0.55;
+          opacity: 0.65;
         }
+
         .hours-input {
           width: 90px;
           height: 38px;
@@ -865,9 +1108,7 @@ const HoursManagement = () => {
 
         .hours-input:focus {
           border-color: #2563eb;
-          box-shadow:
-            0 0 0 2px
-            rgba(37, 99, 235, 0.12);
+          box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
         }
 
         .hours-input:disabled {
@@ -876,31 +1117,31 @@ const HoursManagement = () => {
           cursor: not-allowed;
         }
 
-        .leave-badge {
+        .hours-value {
+          font-weight: 600;
+        }
+
+        .leave-status {
           display: inline-flex;
           align-items: center;
+          justify-content: center;
           gap: 5px;
-          padding: 5px 10px;
+          padding: 7px 12px;
           border-radius: 20px;
-          background: #fee2e2;
-          color: #b91c1c;
-          font-size: 12px;
+          background: #ffedd5;
+          color: #9a3412;
+          font-size: 14px;
+          font-weight: 600;
+          white-space: nowrap;
+        }
+
+        .working-status {
+          color: #16a34a;
           font-weight: 600;
         }
 
-        .wfh-badge {
-          display: inline-flex;
-          align-items: center;
-          padding: 4px 9px;
-          border-radius: 20px;
-          background: #dbeafe;
-          color: #1d4ed8;
-          font-size: 12px;
-          font-weight: 600;
-        }
-
-        .leave-hour-value {
-          color: #94a3b8;
+        .not-worked-status {
+          color: #64748b;
           font-weight: 500;
         }
 
@@ -923,9 +1164,7 @@ const HoursManagement = () => {
           font-size: 15px;
           font-weight: 600;
           cursor: pointer;
-          transition:
-            background 0.2s ease,
-            opacity 0.2s ease;
+          transition: background 0.2s ease, opacity 0.2s ease;
         }
 
         .submit-button:hover {
@@ -952,8 +1191,13 @@ const HoursManagement = () => {
           color: #64748b;
         }
 
-        @media (max-width: 900px) {
+        .leave-info {
+          margin-top: 8px;
+          font-size: 12px;
+          color: #9a3412;
+        }
 
+        @media (max-width: 900px) {
           .hours-filter-row {
             grid-template-columns: 1fr;
             gap: 15px;
@@ -967,11 +1211,9 @@ const HoursManagement = () => {
             grid-template-columns: 1fr;
             gap: 15px;
           }
-
         }
 
         @media (max-width: 600px) {
-
           .hours-management-page {
             padding: 20px 15px;
           }
@@ -987,79 +1229,78 @@ const HoursManagement = () => {
           .submit-button {
             width: 100%;
           }
-
         }
-
       `}</style>
+
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
 
       <div className="hours-management-header">
         <h2>Hours Management</h2>
 
         <p>
-          Mark your working days. Working hours are editable. Approved leave
-          dates are locked.
+          Mark your working days. Approved leave dates are automatically locked.
         </p>
       </div>
 
-      <div className="hours-filter-group">
-        <label>Month</label>
+      {/* =====================================================
+          FILTERS
+      ===================================================== */}
 
-        <select
-          className="hours-select"
-          value={`${selectedYear}-${selectedMonth}`}
-          onChange={(e) => {
-            const [year, month] = e.target.value.split("-");
+      <div className="hours-filter-row">
+        {/* MONTH */}
 
-            const newYear = Number(year);
-            const newMonth = Number(month);
+        <div className="hours-filter-group">
+          <label>Month</label>
 
-            setSelectedYear(newYear);
-            setSelectedMonth(newMonth);
+          <select
+            className="hours-select"
+            value={selectedPeriod}
+            onChange={handlePeriodChange}
+          >
+            {monthOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
 
-            const availableWeeks = getWeeksForMonth(newYear, newMonth);
+        {/* WEEK */}
 
-            setSelectedWeek(availableWeeks[0]);
-          }}
+        <div className="hours-filter-group">
+          <label>Week</label>
+
+          <select
+            className="hours-select"
+            value={selectedWeek}
+            onChange={(e) => setSelectedWeek(Number(e.target.value))}
+          >
+            {availableWeeks.map((week) => (
+              <option key={week} value={week}>
+                Week {week}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* CURRENT WEEK */}
+
+        <button
+          type="button"
+          className="current-week-button"
+          onClick={handleCurrentWeek}
         >
-          {months.map((month) => (
-            <option key={month.value} value={month.value}>
-              {month.label}
-            </option>
-          ))}
-        </select>
+          Current Week
+        </button>
       </div>
 
-      <div className="hours-filter-group">
-        <label>Week</label>
+      {/* =====================================================
+          SUMMARY
+      ===================================================== */}
 
-        <select
-          className="hours-select"
-          value={selectedWeek}
-          onChange={(e) => setSelectedWeek(Number(e.target.value))}
-        >
-          {weekOptions.map((week) => (
-            <option key={week} value={week}>
-              Week {week}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* CURRENT WEEK */}
-
-      <button
-        type="button"
-        className="current-week-button"
-        onClick={handleCurrentWeek}
-      >
-        Current Week
-      </button>
-      <div
-        className="summary-row"
-        style={{
-          marginTop: "25px",
-        }}
-      >
+      <div className="summary-row">
         <div className="summary-card">
           <div className="summary-card-title">Worked Days</div>
 
@@ -1076,11 +1317,15 @@ const HoursManagement = () => {
         </div>
 
         <div className="summary-card">
-          <div className="summary-card-title">Leave Locked</div>
+          <div className="summary-card-title">Approved Leave</div>
 
-          <div className="summary-card-value">{lockedDays}</div>
+          <div className="summary-card-value locked-value">{lockedDays}</div>
         </div>
       </div>
+
+      {/* =====================================================
+          TABLE
+      ===================================================== */}
 
       {loading ? (
         <div className="loading-container">Loading hours...</div>
@@ -1096,14 +1341,11 @@ const HoursManagement = () => {
                 <thead>
                   <tr>
                     <th>Date</th>
-
                     <th>Day</th>
-
                     <th>Week</th>
-
-                    <th>Status</th>
-
+                    <th>Worked</th>
                     <th>Hours</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
 
@@ -1111,7 +1353,7 @@ const HoursManagement = () => {
                   {days.map((day, index) => (
                     <tr
                       key={day.date}
-                      className={day.leaveLocked ? "leave-row" : ""}
+                      className={day.locked ? "leave-row" : ""}
                     >
                       <td>{day.displayDate}</td>
 
@@ -1119,38 +1361,48 @@ const HoursManagement = () => {
 
                       <td>Week {day.week}</td>
 
-                      <td>
-                        {day.leaveLocked ? (
-                          <span className="leave-badge">
-                            🔒 {day.leaveType || "On Leave"}
-                          </span>
-                        ) : (
-                          <input
-                            type="checkbox"
-                            className="worked-checkbox"
-                            checked={Boolean(day.worked)}
-                            disabled={day.leaveLocked}
-                            onChange={() => handleWorkedChange(index)}
-                          />
-                        )}
-                      </td>
+                      {/* WORKED CHECKBOX */}
 
                       <td>
-                        {day.leaveLocked ? (
-                          <span className="leave-hour-value">—</span>
+                        <input
+                          type="checkbox"
+                          className="worked-checkbox"
+                          checked={Boolean(day.worked)}
+                          disabled={day.locked}
+                          onChange={() => handleWorkedChange(index)}
+                        />
+                      </td>
+
+                      {/* HOURS */}
+
+                      <td>
+                        <input
+                          type="number"
+                          className="hours-input"
+                          min="0"
+                          max="24"
+                          step="0.5"
+                          value={day.hours}
+                          disabled={day.locked || !day.worked}
+                          onChange={(e) =>
+                            handleHoursChange(index, e.target.value)
+                          }
+                        />
+                      </td>
+
+                      {/* STATUS */}
+
+                      <td>
+                        {day.locked ? (
+                          <div>
+                            <span className="leave-status">
+                              🔒 {day.leaveType}
+                            </span>
+                          </div>
+                        ) : day.worked ? (
+                          <span className="working-status">Worked</span>
                         ) : (
-                          <input
-                            type="number"
-                            className="hours-input"
-                            min="0"
-                            max="24"
-                            step="0.5"
-                            value={day.hours}
-                            disabled={!day.worked}
-                            onChange={(e) =>
-                              handleHoursChange(index, e.target.value)
-                            }
-                          />
+                          <span className="not-worked-status">Not Worked</span>
                         )}
                       </td>
                     </tr>
@@ -1159,6 +1411,11 @@ const HoursManagement = () => {
               </table>
             </div>
           )}
+
+          {/* =================================================
+              SUBMIT
+          ================================================= */}
+
           <div className="submit-section">
             <button
               type="button"

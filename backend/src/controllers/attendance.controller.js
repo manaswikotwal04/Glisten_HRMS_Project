@@ -110,7 +110,7 @@ export const getMyAttendance = async (req, res) => {
       SELECT
         a.id,
         a.employeeId,
-        a.attendanceDate,
+        DATE_FORMAT(a.attendanceDate, '%Y-%m-%d') AS attendanceDate,
         a.worked,
         a.hours,
 
@@ -726,7 +726,7 @@ export const getAllAttendance = async (
         a.id,
         a.employeeId,
         e.name AS employeeName,
-        a.attendanceDate,
+        DATE_FORMAT(a.attendanceDate, '%Y-%m-%d') AS attendanceDate,
         a.worked,
         a.hours
       FROM attendance a
