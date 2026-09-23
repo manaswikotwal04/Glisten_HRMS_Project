@@ -54,7 +54,6 @@ export const uploadDocument = async (req, res) => {
 
     res.status(201).json({
       message: "Document uploaded successfully",
-
       document: {
         id: result.insertId,
         documentName: documentName.trim(),
@@ -73,7 +72,6 @@ export const uploadDocument = async (req, res) => {
     });
   }
 };
-
 
 /*
 ====================================================
@@ -107,6 +105,104 @@ export const getDocuments = async (req, res) => {
   }
 };
 
+/*
+====================================================
+VIEW / DOWNLOAD DOCUMENT (NEW FIX)
+====================================================
+*/
+
+export const viewDocument = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        message: "Document ID is required",
+      });
+    }
+
+    const [rows] = await db.query(
+      `
+      SELECT
+        id,
+        original_file_name,
+        file_path
+      FROM documents
+      WHERE id = ?
+      `,
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        message: "Document not found",
+      });
+    }
+
+    const document = rows[0];
+
+    // Convert "/uploads/documents/file.pdf"
+    // to "uploads/documents/file.pdf"
+    const cleanPath = document.file_path.replace(/^[/\\]+/, "");
+
+    const absolutePath = path.join(process.cwd(), cleanPath);
+
+    if (!fs.existsSync(absolutePath)) {
+      return res.status(404).json({
+        message: "Document file not found on server",
+      });
+    }
+
+    const extension = path
+      .extname(document.original_file_name)
+      .toLowerCase();
+
+    const mimeTypes = {
+      ".pdf": "application/pdf",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".png": "image/png",
+      ".doc": "application/msword",
+      ".docx":
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ".xls": "application/vnd.ms-excel",
+      ".xlsx":
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    };
+
+    const contentType =
+      mimeTypes[extension] || "application/octet-stream";
+
+    res.setHeader("Content-Type", contentType);
+
+    // Display in browser (PDF/Image) instead of downloading automatically
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${encodeURIComponent(
+        document.original_file_name
+      )}"`
+    );
+
+    res.sendFile(absolutePath, (err) => {
+      if (err) {
+        console.error("Send file error:", err);
+
+        if (!res.headersSent) {
+          res.status(500).json({
+            message: "Failed to open document",
+          });
+        }
+      }
+    });
+  } catch (error) {
+    console.error("View document error:", error);
+
+    res.status(500).json({
+      message: "Failed to open document",
+      error: error.message,
+    });
+  }
+};
 
 /*
 ====================================================
@@ -141,19 +237,9 @@ export const deleteDocument = async (req, res) => {
 
     const relativePath = rows[0].file_path;
 
-    /*
-    Remove leading slash:
-    /uploads/documents/file.xlsx
-    ->
-    uploads/documents/file.xlsx
-    */
-
     const cleanPath = relativePath.replace(/^[/\\]+/, "");
 
-    const absolutePath = path.join(
-      process.cwd(),
-      cleanPath
-    );
+    const absolutePath = path.join(process.cwd(), cleanPath);
 
     if (fs.existsSync(absolutePath)) {
       fs.unlinkSync(absolutePath);

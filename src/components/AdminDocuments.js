@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 const AdminDocuments = () => {
   const [documents, setDocuments] = useState([]);
@@ -10,69 +10,161 @@ const AdminDocuments = () => {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
-  const token = localStorage.getItem("token");
-
   /*
-  ====================================================
-  LOAD DOCUMENTS
-  ====================================================
+    ====================================================
+    GET TOKEN
+    ====================================================
   */
 
-  const loadDocuments = async () => {
-    try {
-      setFetching(true);
-
-      const response = await fetch("/api/documents/admin", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to load documents");
-      }
-
-      setDocuments(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Load documents error:", error);
-
-      alert(error.message || "Failed to load documents");
-    } finally {
-      setFetching(false);
-    }
+  const getToken = () => {
+    return localStorage.getItem("token");
   };
 
   /*
-  ====================================================
-  INITIAL LOAD
-  ====================================================
+    ====================================================
+    API JSON HELPER
+    ====================================================
+  */
+
+  const getResponseData = async (response) => {
+    const contentType =
+      response.headers.get("content-type") || "";
+
+    if (contentType.includes("application/json")) {
+      try {
+        return await response.json();
+      } catch {
+        return {
+          message: "Invalid JSON response from server",
+        };
+      }
+    }
+
+    const text = await response.text();
+
+    return {
+      message: text || "Unexpected server response",
+    };
+  };
+
+  /*
+    ====================================================
+    LOAD DOCUMENTS
+    ====================================================
+  */
+
+  const loadDocuments = useCallback(async () => {
+    try {
+      setFetching(true);
+
+      const token = getToken();
+
+      if (!token) {
+        throw new Error("Please login again.");
+      }
+
+      const response = await fetch(
+        "/api/documents/admin",
+        {
+          method: "GET",
+
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+            "Cache-Control": "no-cache",
+          },
+        }
+      );
+
+      const data =
+        await getResponseData(response);
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            data.error ||
+            `Failed to load documents (${response.status})`
+        );
+      }
+
+      /*
+        Backend may return:
+        [
+          {
+            id,
+            documentName,
+            documentType,
+            originalFileName,
+            filePath,
+            createdAt
+          }
+        ]
+      */
+
+      setDocuments(
+        Array.isArray(data)
+          ? data
+          : Array.isArray(data.documents)
+          ? data.documents
+          : []
+      );
+    } catch (error) {
+      console.error(
+        "Load documents error:",
+        error
+      );
+
+      setDocuments([]);
+
+      alert(
+        error.message ||
+          "Failed to load documents"
+      );
+    } finally {
+      setFetching(false);
+    }
+  }, []);
+
+  /*
+    ====================================================
+    INITIAL LOAD
+    ====================================================
   */
 
   useEffect(() => {
+    const token = getToken();
+
     if (!token) {
-      alert("Please login again.");
+      setFetching(false);
+
+      alert(
+        "Please login again."
+      );
+
       return;
     }
 
     loadDocuments();
-  }, []);
+  }, [loadDocuments]);
 
   /*
-  ====================================================
-  FILE CHANGE
-  ====================================================
+    ====================================================
+    FILE CHANGE
+    ====================================================
   */
 
   const handleFileChange = (e) => {
-    const selectedFile = e.target.files?.[0];
+    const selectedFile =
+      e.target.files?.[0];
 
     if (!selectedFile) {
       setFile(null);
       return;
     }
+
+    /*
+      Allowed file types
+    */
 
     const allowedExtensions = [
       ".pdf",
@@ -85,31 +177,47 @@ const AdminDocuments = () => {
       ".png",
     ];
 
-    const fileName = selectedFile.name.toLowerCase();
+    const fileName =
+      selectedFile.name.toLowerCase();
 
-    const extension = fileName.substring(fileName.lastIndexOf("."));
+    const lastDot =
+      fileName.lastIndexOf(".");
 
-    if (!allowedExtensions.includes(extension)) {
+    const extension =
+      lastDot !== -1
+        ? fileName.substring(lastDot)
+        : "";
+
+    if (
+      !allowedExtensions.includes(
+        extension
+      )
+    ) {
       alert(
         "Only PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG and PNG files are allowed."
       );
 
       e.target.value = "";
+
       setFile(null);
 
       return;
     }
 
     /*
-    10 MB limit
+      10 MB LIMIT
     */
 
-    const maxSize = 10 * 1024 * 1024;
+    const maxSize =
+      10 * 1024 * 1024;
 
     if (selectedFile.size > maxSize) {
-      alert("File size must be less than 10 MB.");
+      alert(
+        "File size must be less than 10 MB."
+      );
 
       e.target.value = "";
+
       setFile(null);
 
       return;
@@ -119,169 +227,546 @@ const AdminDocuments = () => {
   };
 
   /*
-  ====================================================
-  UPLOAD DOCUMENT
-  ====================================================
+    ====================================================
+    UPLOAD DOCUMENT
+    ====================================================
   */
 
   const handleUpload = async (e) => {
     e.preventDefault();
 
+    /*
+      DOCUMENT NAME
+    */
+
     if (!documentName.trim()) {
-      alert("Please enter document name");
+      alert(
+        "Please enter document name"
+      );
+
       return;
     }
 
+    /*
+      DOCUMENT TYPE
+    */
+
+    if (!documentType) {
+      alert(
+        "Please select document type"
+      );
+
+      return;
+    }
+
+    /*
+      FILE
+    */
+
     if (!file) {
-      alert("Please select a document");
+      alert(
+        "Please select a document"
+      );
+
       return;
     }
 
     try {
       setLoading(true);
 
-      const formData = new FormData();
+      const token = getToken();
 
-      formData.append("documentName", documentName.trim());
-
-      formData.append("documentType", documentType);
-
-      formData.append("document", file);
-
-      const response = await fetch("/api/documents/upload", {
-        method: "POST",
-
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-
-        body: formData,
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Upload failed");
+      if (!token) {
+        throw new Error(
+          "Please login again."
+        );
       }
 
-      alert("Document uploaded successfully");
+      const formData =
+        new FormData();
+
+      formData.append(
+        "documentName",
+        documentName.trim()
+      );
+
+      formData.append(
+        "documentType",
+        documentType
+      );
+
+      formData.append(
+        "document",
+        file
+      );
+
+      const response =
+        await fetch(
+          "/api/documents/upload",
+          {
+            method: "POST",
+
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+
+            /*
+              IMPORTANT:
+              Do NOT manually set Content-Type.
+              Browser automatically creates
+              multipart/form-data boundary.
+            */
+
+            body: formData,
+          }
+        );
+
+      const data =
+        await getResponseData(
+          response
+        );
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            data.error ||
+            `Upload failed (${response.status})`
+        );
+      }
+
+      alert(
+        data.message ||
+          "Document uploaded successfully"
+      );
+
+      /*
+        CLEAR FORM
+      */
 
       setDocumentName("");
       setDocumentType("");
       setFile(null);
 
-      const fileInput = document.getElementById("document-file");
+      const fileInput =
+        document.getElementById(
+          "document-file"
+        );
 
       if (fileInput) {
         fileInput.value = "";
       }
 
-      await loadDocuments();
-    } catch (error) {
-      console.error("Upload error:", error);
+      /*
+        REFRESH LIST
+      */
 
-      alert(error.message || "Upload failed");
+      await loadDocuments();
+
+    } catch (error) {
+      console.error(
+        "Upload error:",
+        error
+      );
+
+      alert(
+        error.message ||
+          "Upload failed"
+      );
     } finally {
       setLoading(false);
     }
   };
 
   /*
-  ====================================================
-  DELETE
-  ====================================================
+    ====================================================
+    DELETE DOCUMENT
+    ====================================================
   */
 
   const handleDelete = async (id) => {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this document?"
-    );
+    if (!id) {
+      alert(
+        "Document ID not found."
+      );
+
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        "Are you sure you want to delete this document?"
+      );
 
     if (!confirmed) {
       return;
     }
 
     try {
-      const response = await fetch(`/api/documents/${id}`, {
-        method: "DELETE",
+      const token = getToken();
 
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Delete failed");
+      if (!token) {
+        throw new Error(
+          "Please login again."
+        );
       }
 
-      alert("Document deleted successfully");
+      const response =
+        await fetch(
+          `/api/documents/${encodeURIComponent(
+            id
+          )}`,
+          {
+            method: "DELETE",
+
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }
+        );
+
+      const data =
+        await getResponseData(
+          response
+        );
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            data.error ||
+            `Delete failed (${response.status})`
+        );
+      }
+
+      alert(
+        data.message ||
+          "Document deleted successfully"
+      );
 
       await loadDocuments();
-    } catch (error) {
-      console.error("Delete error:", error);
 
-      alert(error.message || "Delete failed");
+    } catch (error) {
+      console.error(
+        "Delete error:",
+        error
+      );
+
+      alert(
+        error.message ||
+          "Delete failed"
+      );
     }
   };
 
   /*
-  ====================================================
-  FILE TYPE
-  ====================================================
+    ====================================================
+    FILE TYPE
+    ====================================================
   */
 
-  const getFileExtension = (fileName) => {
-    if (!fileName) return "";
+  const getFileExtension = (
+    fileName
+  ) => {
+    if (!fileName) {
+      return "";
+    }
+
+    const lastDot =
+      fileName.lastIndexOf(".");
+
+    if (lastDot === -1) {
+      return "";
+    }
 
     return fileName
-      .substring(fileName.lastIndexOf(".") + 1)
+      .substring(lastDot + 1)
       .toLowerCase();
   };
 
   /*
-  ====================================================
-  FILE URL
-  ====================================================
+    ====================================================
+    CHECK EXCEL
+    ====================================================
   */
 
-  const getFileUrl = (filePath) => {
-    if (!filePath) {
-      return "#";
+  const isExcelFile = (
+    fileName
+  ) => {
+    const extension =
+      getFileExtension(
+        fileName
+      );
+
+    return (
+      extension === "xls" ||
+      extension === "xlsx"
+    );
+  };
+
+  /*
+    ====================================================
+    VIEW / DOWNLOAD DOCUMENT
+    ====================================================
+
+    IMPORTANT FIX:
+
+    DO NOT directly open:
+
+      /uploads/filename.pdf
+
+    because the browser does not send:
+
+      Authorization: Bearer <token>
+
+    Instead:
+
+      1. Get document ID
+      2. Call protected backend endpoint
+      3. Backend authenticates admin
+      4. Backend reads the document
+      5. Backend sends file
+      6. Convert response to Blob
+      7. Create temporary Blob URL
+      8. View or download
+  */
+
+  const handleDocumentAction = async (
+    documentId,
+    originalFileName,
+    download = false
+  ) => {
+    /*
+      Document ID is required
+    */
+
+    if (!documentId) {
+      alert(
+        "Document ID not found."
+      );
+
+      return;
     }
 
-    return filePath;
+    /*
+      Open tab BEFORE async request.
+
+      This prevents popup blocker when
+      the user clicks View.
+    */
+
+    const newTab = download
+      ? null
+      : window.open(
+          "",
+          "_blank"
+        );
+
+    if (!download && !newTab) {
+      alert(
+        "Please allow pop-ups for this website and try again."
+      );
+
+      return;
+    }
+
+    try {
+      const token = getToken();
+
+      if (!token) {
+        if (newTab) {
+          newTab.close();
+        }
+
+        alert(
+          "Your session has expired. Please login again."
+        );
+
+        return;
+      }
+
+      /*
+        IMPORTANT:
+
+        Use DOCUMENT ID instead of filePath.
+
+        Backend route:
+
+        GET /api/documents/view/:id
+      */
+
+      const documentUrl =
+        `/api/documents/view/${encodeURIComponent(
+          documentId
+        )}`;
+
+      console.log(
+        "Opening document:",
+        documentUrl
+      );
+
+      /*
+        FETCH WITH JWT
+      */
+
+      const response =
+        await fetch(
+          documentUrl,
+          {
+            method: "GET",
+
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "*/*",
+            },
+          }
+        );
+
+      /*
+        ERROR RESPONSE
+      */
+
+      if (!response.ok) {
+        const data =
+          await getResponseData(
+            response
+          );
+
+        if (newTab) {
+          newTab.close();
+        }
+
+        throw new Error(
+          data.message ||
+            data.error ||
+            `Unable to open document (${response.status})`
+        );
+      }
+
+      /*
+        Convert response to Blob
+      */
+
+      const blob =
+        await response.blob();
+
+      if (
+        !blob ||
+        blob.size === 0
+      ) {
+        if (newTab) {
+          newTab.close();
+        }
+
+        throw new Error(
+          "The document is empty or unavailable."
+        );
+      }
+
+      /*
+        Create temporary browser URL
+      */
+
+      const blobUrl =
+        window.URL.createObjectURL(
+          blob
+        );
+
+      /*
+        ==============================
+        DOWNLOAD
+        ==============================
+      */
+
+      if (download) {
+        const link =
+          document.createElement(
+            "a"
+          );
+
+        link.href = blobUrl;
+
+        link.download =
+          originalFileName ||
+          "document";
+
+        document.body.appendChild(
+          link
+        );
+
+        link.click();
+
+        link.remove();
+
+        /*
+          Clean temporary URL
+          after browser has started download.
+        */
+
+        setTimeout(() => {
+          window.URL.revokeObjectURL(
+            blobUrl
+          );
+        }, 60000);
+
+        return;
+      }
+
+      /*
+        ==============================
+        VIEW
+        ==============================
+      */
+
+      newTab.location.href =
+        blobUrl;
+
+      /*
+        Keep Blob URL alive long enough
+        for browser to load the document.
+      */
+
+      setTimeout(() => {
+        window.URL.revokeObjectURL(
+          blobUrl
+        );
+      }, 60000);
+
+    } catch (error) {
+      console.error(
+        "Document action error:",
+        error
+      );
+
+      if (newTab) {
+        newTab.close();
+      }
+
+      alert(
+        error.message ||
+          "Unable to open document."
+      );
+    }
   };
 
   /*
-  ====================================================
-  CHECK EXCEL
-  ====================================================
-  */
-
-  const isExcelFile = (fileName) => {
-    const extension = getFileExtension(fileName);
-
-    return extension === "xls" || extension === "xlsx";
-  };
-
-  /*
-  ====================================================
-  RENDER
-  ====================================================
+    ====================================================
+    RENDER
+    ====================================================
   */
 
   return (
     <>
       <style>{`
+
         .documents-page {
           min-height: 100%;
           padding: 28px;
           background: #f6f8fb;
           color: #172033;
-          font-family: Inter, -apple-system, BlinkMacSystemFont,
-            "Segoe UI", sans-serif;
+          font-family: Inter, -apple-system,
+            BlinkMacSystemFont, "Segoe UI",
+            sans-serif;
           box-sizing: border-box;
         }
 
@@ -290,7 +775,7 @@ const AdminDocuments = () => {
           margin: 0 auto;
         }
 
-        /* HEADER */
+        /* ================= HEADER ================= */
 
         .documents-header {
           display: flex;
@@ -315,7 +800,9 @@ const AdminDocuments = () => {
           background: #e9efff;
           color: #3157d5;
           font-size: 24px;
-          box-shadow: 0 6px 18px rgba(49, 87, 213, 0.08);
+          box-shadow:
+            0 6px 18px
+            rgba(49, 87, 213, 0.08);
         }
 
         .documents-header h2 {
@@ -332,14 +819,16 @@ const AdminDocuments = () => {
           font-size: 14px;
         }
 
-        /* CARDS */
+        /* ================= CARDS ================= */
 
         .document-upload-card,
         .document-list-card {
           background: #ffffff;
           border: 1px solid #e7ebf2;
           border-radius: 18px;
-          box-shadow: 0 8px 30px rgba(31, 41, 55, 0.06);
+          box-shadow:
+            0 8px 30px
+            rgba(31, 41, 55, 0.06);
         }
 
         .document-upload-card {
@@ -347,7 +836,7 @@ const AdminDocuments = () => {
           margin-bottom: 22px;
         }
 
-        /* CARD HEADING */
+        /* ================= CARD HEADING ================= */
 
         .card-heading {
           display: flex;
@@ -379,11 +868,12 @@ const AdminDocuments = () => {
           color: #8993a4;
         }
 
-        /* FORM */
+        /* ================= FORM ================= */
 
         .document-form-grid {
           display: grid;
-          grid-template-columns: 1fr 1fr 1.2fr;
+          grid-template-columns:
+            1fr 1fr 1.2fr;
           gap: 18px;
         }
 
@@ -425,10 +915,12 @@ const AdminDocuments = () => {
         .form-group select:focus {
           border-color: #6d87df;
           background: #ffffff;
-          box-shadow: 0 0 0 3px rgba(49, 87, 213, 0.1);
+          box-shadow:
+            0 0 0 3px
+            rgba(49, 87, 213, 0.1);
         }
 
-        /* FILE INPUT */
+        /* ================= FILE INPUT ================= */
 
         .file-picker {
           height: 46px;
@@ -479,7 +971,7 @@ const AdminDocuments = () => {
           white-space: nowrap;
         }
 
-        /* UPLOAD BUTTON */
+        /* ================= UPLOAD BUTTON ================= */
 
         .document-upload-btn {
           margin-top: 20px;
@@ -493,7 +985,9 @@ const AdminDocuments = () => {
           font-size: 13px;
           font-weight: 700;
           cursor: pointer;
-          box-shadow: 0 7px 16px rgba(49, 87, 213, 0.2);
+          box-shadow:
+            0 7px 16px
+            rgba(49, 87, 213, 0.2);
           transition:
             transform 0.15s,
             box-shadow 0.15s,
@@ -502,7 +996,9 @@ const AdminDocuments = () => {
 
         .document-upload-btn:hover:not(:disabled) {
           transform: translateY(-1px);
-          box-shadow: 0 9px 20px rgba(49, 87, 213, 0.25);
+          box-shadow:
+            0 9px 20px
+            rgba(49, 87, 213, 0.25);
         }
 
         .document-upload-btn:active:not(:disabled) {
@@ -514,7 +1010,7 @@ const AdminDocuments = () => {
           cursor: not-allowed;
         }
 
-        /* DOCUMENT LIST */
+        /* ================= DOCUMENT LIST ================= */
 
         .document-list-card {
           overflow: hidden;
@@ -577,7 +1073,8 @@ const AdminDocuments = () => {
 
         .document-item {
           display: grid;
-          grid-template-columns: 48px minmax(0, 1fr) auto;
+          grid-template-columns:
+            48px minmax(0, 1fr) auto;
           align-items: center;
           gap: 15px;
           padding: 15px 0;
@@ -588,7 +1085,7 @@ const AdminDocuments = () => {
           border-bottom: 0;
         }
 
-        /* DOCUMENT ICON */
+        /* ================= ICON ================= */
 
         .document-icon {
           width: 48px;
@@ -600,7 +1097,7 @@ const AdminDocuments = () => {
           font-size: 22px;
         }
 
-        /* DOCUMENT INFO */
+        /* ================= INFO ================= */
 
         .document-info {
           min-width: 0;
@@ -633,7 +1130,7 @@ const AdminDocuments = () => {
           font-size: 11px;
         }
 
-        /* ACTIONS */
+        /* ================= ACTIONS ================= */
 
         .document-actions {
           display: flex;
@@ -666,9 +1163,13 @@ const AdminDocuments = () => {
           color: #3157d5;
         }
 
-        .document-view-btn:hover {
+        .document-view-btn:hover:not(:disabled) {
           background: #eef2ff;
           transform: translateY(-1px);
+        }
+
+        .document-view-btn:disabled {
+          cursor: not-allowed;
         }
 
         .document-delete-btn {
@@ -683,7 +1184,7 @@ const AdminDocuments = () => {
           transform: translateY(-1px);
         }
 
-        /* EMPTY / LOADING */
+        /* ================= EMPTY / LOADING ================= */
 
         .documents-empty {
           margin: 0;
@@ -693,11 +1194,13 @@ const AdminDocuments = () => {
           font-size: 13px;
         }
 
-        /* TABLET */
+        /* ================= TABLET ================= */
 
         @media (max-width: 900px) {
+
           .document-form-grid {
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns:
+              1fr 1fr;
           }
 
           .document-file-group {
@@ -705,9 +1208,10 @@ const AdminDocuments = () => {
           }
         }
 
-        /* MOBILE */
+        /* ================= MOBILE ================= */
 
         @media (max-width: 680px) {
+
           .documents-page {
             padding: 16px;
           }
@@ -748,7 +1252,8 @@ const AdminDocuments = () => {
           }
 
           .document-item {
-            grid-template-columns: 42px minmax(0, 1fr);
+            grid-template-columns:
+              42px minmax(0, 1fr);
             gap: 12px;
           }
 
@@ -770,52 +1275,70 @@ const AdminDocuments = () => {
             width: 100%;
           }
         }
+
       `}</style>
 
       <div className="documents-page">
+
         <div className="documents-shell">
 
-          {/* HEADER */}
+          {/* ================= HEADER ================= */}
 
           <div className="documents-header">
+
             <div className="documents-title-wrap">
+
               <div className="documents-title-icon">
                 📁
               </div>
 
               <div>
-                <h2>Company Documents</h2>
+
+                <h2>
+                  Company Documents
+                </h2>
 
                 <p>
-                  Manage documents that are available to all employees.
+                  Manage documents that are
+                  available to all employees.
                 </p>
+
               </div>
+
             </div>
+
           </div>
 
-          {/* UPLOAD CARD */}
+          {/* ================= UPLOAD CARD ================= */}
 
           <div className="document-upload-card">
 
             <div className="card-heading">
+
               <div className="card-heading-icon">
                 ↥
               </div>
 
               <div>
-                <h3>Upload Document</h3>
+
+                <h3>
+                  Upload Document
+                </h3>
 
                 <p>
-                  Add a new company document to the employee portal.
+                  Add a new company document
+                  to the employee portal.
                 </p>
+
               </div>
+
             </div>
 
             <form onSubmit={handleUpload}>
 
               <div className="document-form-grid">
 
-                {/* DOCUMENT NAME */}
+                {/* ================= DOCUMENT NAME ================= */}
 
                 <div className="form-group">
 
@@ -828,13 +1351,15 @@ const AdminDocuments = () => {
                     placeholder="e.g. Leave Policy 2026"
                     value={documentName}
                     onChange={(e) =>
-                      setDocumentName(e.target.value)
+                      setDocumentName(
+                        e.target.value
+                      )
                     }
                   />
 
                 </div>
 
-                {/* DOCUMENT TYPE */}
+                {/* ================= DOCUMENT TYPE ================= */}
 
                 <div className="form-group">
 
@@ -845,9 +1370,12 @@ const AdminDocuments = () => {
                   <select
                     value={documentType}
                     onChange={(e) =>
-                      setDocumentType(e.target.value)
+                      setDocumentType(
+                        e.target.value
+                      )
                     }
                   >
+
                     <option value="">
                       Select type
                     </option>
@@ -875,11 +1403,12 @@ const AdminDocuments = () => {
                     <option value="Other">
                       Other
                     </option>
+
                   </select>
 
                 </div>
 
-                {/* FILE */}
+                {/* ================= FILE ================= */}
 
                 <div className="form-group document-file-group">
 
@@ -893,22 +1422,28 @@ const AdminDocuments = () => {
                       id="document-file"
                       type="file"
                       accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                      onChange={handleFileChange}
+                      onChange={
+                        handleFileChange
+                      }
                     />
 
                   </div>
 
                   <small>
-                    PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG or PNG
+                    PDF, DOC, DOCX, XLS, XLSX,
+                    JPG, JPEG or PNG
                     — max 10 MB
                   </small>
 
                   {file && (
                     <div className="selected-file">
+
                       ✓{" "}
+
                       <strong>
                         {file.name}
                       </strong>
+
                     </div>
                   )}
 
@@ -916,23 +1451,25 @@ const AdminDocuments = () => {
 
               </div>
 
-              {/* UPLOAD BUTTON */}
+              {/* ================= UPLOAD BUTTON ================= */}
 
               <button
                 type="submit"
                 className="document-upload-btn"
                 disabled={loading}
               >
+
                 {loading
                   ? "Uploading..."
                   : "Upload Document"}
+
               </button>
 
             </form>
 
           </div>
 
-          {/* DOCUMENT LIST */}
+          {/* ================= DOCUMENT LIST ================= */}
 
           <div className="document-list-card">
 
@@ -945,13 +1482,16 @@ const AdminDocuments = () => {
                 </div>
 
                 <div>
+
                   <h3>
                     Uploaded Documents
                   </h3>
 
                   <p>
-                    These documents are visible to all employees.
+                    These documents are visible
+                    to all employees.
                   </p>
+
                 </div>
 
               </div>
@@ -962,7 +1502,7 @@ const AdminDocuments = () => {
 
             </div>
 
-            {/* LOADING */}
+            {/* ================= LOADING ================= */}
 
             {fetching ? (
 
@@ -994,74 +1534,135 @@ const AdminDocuments = () => {
                       key={doc.id}
                     >
 
-                      {/* ICON */}
+                      {/* ================= ICON ================= */}
 
                       <div className="document-icon">
+
                         {excel
                           ? "📊"
                           : "📄"}
+
                       </div>
 
-                      {/* INFORMATION */}
+                      {/* ================= INFORMATION ================= */}
 
                       <div className="document-info">
 
                         <strong>
-                          {doc.documentName}
+
+                          {doc.documentName ||
+                            "Untitled Document"}
+
                         </strong>
 
                         <span>
+
                           {doc.documentType ||
                             "Document"}
 
                           {" • "}
 
-                          {doc.originalFileName}
+                          {doc.originalFileName ||
+                            "Unknown file"}
+
                         </span>
 
                         <small>
+
                           Uploaded{" "}
+
                           {doc.createdAt
                             ? new Date(
                                 doc.createdAt
                               ).toLocaleDateString()
                             : "—"}
+
                         </small>
 
                       </div>
 
-                      {/* ACTIONS */}
+                      {/* ================= ACTIONS ================= */}
 
                       <div className="document-actions">
 
-                        {excel ? (
+                        {doc.filePath ? (
 
-                          <a
-                            href={getFileUrl(
-                              doc.filePath
-                            )}
-                            className="document-view-btn"
-                            download={
-                              doc.originalFileName
-                            }
-                          >
-                            Download
-                          </a>
+                          excel ? (
+
+                            /*
+                              EXCEL:
+                              Authenticated download
+
+                              IMPORTANT:
+                              Pass doc.id
+                              NOT doc.filePath
+                            */
+
+                            <button
+                              type="button"
+                              className="document-view-btn"
+                              onClick={() =>
+                                handleDocumentAction(
+                                  doc.id,
+                                  doc.originalFileName,
+                                  true
+                                )
+                              }
+                            >
+
+                              Download
+
+                            </button>
+
+                          ) : (
+
+                            /*
+                              PDF / DOC / IMAGE:
+                              Authenticated view
+
+                              IMPORTANT:
+                              Pass doc.id
+                              NOT doc.filePath
+                            */
+
+                            <button
+                              type="button"
+                              className="document-view-btn"
+                              onClick={() =>
+                                handleDocumentAction(
+                                  doc.id,
+                                  doc.originalFileName,
+                                  false
+                                )
+                              }
+                            >
+
+                              View
+
+                            </button>
+
+                          )
 
                         ) : (
 
-                          <a
-                            href={getFileUrl(
-                              doc.filePath
-                            )}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            type="button"
                             className="document-view-btn"
+                            disabled
+                            style={{
+                              opacity: 0.5,
+                              cursor:
+                                "not-allowed",
+                            }}
                           >
-                            View
-                          </a>
+
+                            No File
+
+                          </button>
 
                         )}
+
+                        {/* ================= DELETE ================= */}
 
                         <button
                           type="button"
@@ -1072,7 +1673,9 @@ const AdminDocuments = () => {
                             )
                           }
                         >
+
                           Delete
+
                         </button>
 
                       </div>
@@ -1080,6 +1683,7 @@ const AdminDocuments = () => {
                     </div>
 
                   );
+
                 })}
 
               </div>
@@ -1089,6 +1693,7 @@ const AdminDocuments = () => {
           </div>
 
         </div>
+
       </div>
     </>
   );

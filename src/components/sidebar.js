@@ -1,8 +1,10 @@
 import React from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 
 const Sidebar = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+
   const role = localStorage.getItem("role");
 
   let employeeId = null;
@@ -10,31 +12,40 @@ const Sidebar = () => {
   try {
     const user = JSON.parse(localStorage.getItem("user"));
     employeeId = user?.employeeId || null;
-  } catch {
+  } catch (error) {
     employeeId = null;
   }
 
   // ================= LOGO =================
+
   const glistenImg = new URL(
     "../assets/glisten.png",
     import.meta.url
   ).href;
 
-  console.log("Logo URL:", glistenImg);
+  // ================= AUTH CHECK =================
 
-  // Show sidebar only for logged-in users
   if (!role) {
     return null;
   }
 
   // ================= LOGOUT =================
 
-  const handleLogout = () => {
-    if (!window.confirm("Are you sure you want to logout?")) {
+  const handleLogout = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const confirmed = window.confirm(
+      "Are you sure you want to logout?"
+    );
+
+    if (!confirmed) {
       return;
     }
 
-    localStorage.clear();
+    localStorage.removeItem("token");
+    localStorage.removeItem("role");
+    localStorage.removeItem("user");
 
     navigate("/login", {
       replace: true,
@@ -48,9 +59,22 @@ const Sidebar = () => {
       ? "/app/employees"
       : "/app/employee-dashboard";
 
+  // ================= ACTIVE =================
+
+  const isActive = (path) => {
+    return location.pathname === path;
+  };
+
+  const getMenuClass = (path) => {
+    return `glisten-menu-item ${
+      isActive(path) ? "active" : ""
+    }`;
+  };
+
   return (
     <>
       <style>{`
+
         /* =====================================================
            GLISTEN SIDEBAR
         ===================================================== */
@@ -79,9 +103,8 @@ const Sidebar = () => {
           box-sizing: border-box;
         }
 
-
         /* =====================================================
-           LOGO AREA
+           LOGO
         ===================================================== */
 
         .glisten-logo-link {
@@ -95,7 +118,6 @@ const Sidebar = () => {
 
           border-bottom: 1px solid #edf0f4;
         }
-
 
         .glisten-logo {
           width: 100%;
@@ -111,7 +133,6 @@ const Sidebar = () => {
           box-sizing: border-box;
         }
 
-
         .glisten-logo img {
           width: 165px;
           height: 75px;
@@ -121,9 +142,8 @@ const Sidebar = () => {
           display: block;
         }
 
-
         /* =====================================================
-           MENU AREA
+           MENU
         ===================================================== */
 
         .glisten-menu {
@@ -142,7 +162,6 @@ const Sidebar = () => {
 
           box-sizing: border-box;
         }
-
 
         /* =====================================================
            MENU TITLE
@@ -163,7 +182,6 @@ const Sidebar = () => {
 
           text-transform: uppercase;
         }
-
 
         /* =====================================================
            MENU ITEM
@@ -212,7 +230,6 @@ const Sidebar = () => {
             box-shadow 0.2s ease;
         }
 
-
         /* =====================================================
            ICON
         ===================================================== */
@@ -239,7 +256,6 @@ const Sidebar = () => {
             transform 0.2s ease;
         }
 
-
         /* =====================================================
            HOVER
         ===================================================== */
@@ -252,16 +268,14 @@ const Sidebar = () => {
           transform: translateX(2px);
         }
 
-
         .glisten-menu-item:hover .glisten-menu-icon {
           background: #e2eaff;
 
           transform: scale(1.05);
         }
 
-
         /* =====================================================
-           ACTIVE STYLE
+           ACTIVE
         ===================================================== */
 
         .glisten-menu-item.active {
@@ -275,11 +289,9 @@ const Sidebar = () => {
             0 3px 10px rgba(49, 87, 213, 0.06);
         }
 
-
         .glisten-menu-item.active .glisten-menu-icon {
           background: #dce6ff;
         }
-
 
         /* =====================================================
            LOGOUT
@@ -293,18 +305,15 @@ const Sidebar = () => {
           background: #fff7f7 !important;
         }
 
-
         .glisten-logout:hover {
           background: #fff0f0 !important;
 
           color: #bd3e3e !important;
         }
 
-
         .glisten-logout .glisten-menu-icon {
           background: #ffe6e6;
         }
-
 
         /* =====================================================
            SCROLLBAR
@@ -314,11 +323,9 @@ const Sidebar = () => {
           width: 4px;
         }
 
-
         .glisten-menu::-webkit-scrollbar-track {
           background: transparent;
         }
-
 
         .glisten-menu::-webkit-scrollbar-thumb {
           background: #d9dee7;
@@ -326,12 +333,12 @@ const Sidebar = () => {
           border-radius: 10px;
         }
 
-
         /* =====================================================
            MOBILE
         ===================================================== */
 
         @media (max-width: 900px) {
+
           .glisten-sidebar {
             width: 205px;
             min-width: 205px;
@@ -347,8 +354,8 @@ const Sidebar = () => {
           }
         }
 
-
         @media (max-width: 650px) {
+
           .glisten-sidebar {
             width: 195px;
             min-width: 195px;
@@ -375,8 +382,8 @@ const Sidebar = () => {
             font-size: 13px;
           }
         }
-      `}</style>
 
+      `}</style>
 
       {/* =====================================================
           SIDEBAR
@@ -395,24 +402,10 @@ const Sidebar = () => {
             <img
               src={glistenImg}
               alt="Glisten Logo"
-
-              onLoad={() => {
-                console.log(
-                  "Glisten logo loaded successfully"
-                );
-              }}
-
-              onError={(e) => {
-                console.error(
-                  "Glisten logo failed:",
-                  e.currentTarget.src
-                );
-              }}
             />
 
           </div>
         </Link>
-
 
         {/* ================= MENU ================= */}
 
@@ -424,15 +417,16 @@ const Sidebar = () => {
               : "Employee Portal"}
           </div>
 
-
-          {/* ================= ADMIN ================= */}
+          {/* =================================================
+              ADMIN
+          ================================================= */}
 
           {role === "admin" && (
             <>
 
               <Link
                 to="/app/employees"
-                className="glisten-menu-item"
+                className={getMenuClass("/app/employees")}
               >
                 <span className="glisten-menu-icon">
                   👥
@@ -443,10 +437,9 @@ const Sidebar = () => {
                 </span>
               </Link>
 
-
               <Link
                 to="/app/employee-hours"
-                className="glisten-menu-item"
+                className={getMenuClass("/app/employee-hours")}
               >
                 <span className="glisten-menu-icon">
                   ⏱
@@ -457,10 +450,9 @@ const Sidebar = () => {
                 </span>
               </Link>
 
-
               <Link
                 to="/app/leave-requests"
-                className="glisten-menu-item"
+                className={getMenuClass("/app/leave-requests")}
               >
                 <span className="glisten-menu-icon">
                   📋
@@ -471,10 +463,11 @@ const Sidebar = () => {
                 </span>
               </Link>
 
-
               <Link
                 to="/app/salary-structure/add"
-                className="glisten-menu-item"
+                className={getMenuClass(
+                  "/app/salary-structure/add"
+                )}
               >
                 <span className="glisten-menu-icon">
                   💰
@@ -485,10 +478,11 @@ const Sidebar = () => {
                 </span>
               </Link>
 
-
               <Link
                 to="/app/generate-payslip"
-                className="glisten-menu-item"
+                className={getMenuClass(
+                  "/app/generate-payslip"
+                )}
               >
                 <span className="glisten-menu-icon">
                   📄
@@ -499,10 +493,11 @@ const Sidebar = () => {
                 </span>
               </Link>
 
-
               <Link
                 to="/app/payroll-list"
-                className="glisten-menu-item"
+                className={getMenuClass(
+                  "/app/payroll-list"
+                )}
               >
                 <span className="glisten-menu-icon">
                   💳
@@ -513,10 +508,11 @@ const Sidebar = () => {
                 </span>
               </Link>
 
+              {/* ================= ADMIN DOCUMENTS ================= */}
 
               <Link
                 to="/app/documents"
-                className="glisten-menu-item"
+                className={getMenuClass("/app/documents")}
               >
                 <span className="glisten-menu-icon">
                   📁
@@ -527,6 +523,7 @@ const Sidebar = () => {
                 </span>
               </Link>
 
+              {/* ================= LOGOUT ================= */}
 
               <button
                 type="button"
@@ -545,15 +542,18 @@ const Sidebar = () => {
             </>
           )}
 
-
-          {/* ================= EMPLOYEE ================= */}
+          {/* =================================================
+              EMPLOYEE
+          ================================================= */}
 
           {role === "employee" && (
             <>
 
               <Link
                 to="/app/employee-dashboard"
-                className="glisten-menu-item"
+                className={getMenuClass(
+                  "/app/employee-dashboard"
+                )}
               >
                 <span className="glisten-menu-icon">
                   🏠
@@ -564,10 +564,11 @@ const Sidebar = () => {
                 </span>
               </Link>
 
-
               <Link
                 to="/app/apply-leave"
-                className="glisten-menu-item"
+                className={getMenuClass(
+                  "/app/apply-leave"
+                )}
               >
                 <span className="glisten-menu-icon">
                   📝
@@ -578,10 +579,11 @@ const Sidebar = () => {
                 </span>
               </Link>
 
-
               <Link
                 to="/app/my-leaves"
-                className="glisten-menu-item"
+                className={getMenuClass(
+                  "/app/my-leaves"
+                )}
               >
                 <span className="glisten-menu-icon">
                   📋
@@ -592,10 +594,11 @@ const Sidebar = () => {
                 </span>
               </Link>
 
-
               <Link
                 to="/app/hours-management"
-                className="glisten-menu-item"
+                className={getMenuClass(
+                  "/app/hours-management"
+                )}
               >
                 <span className="glisten-menu-icon">
                   ⏱
@@ -606,10 +609,13 @@ const Sidebar = () => {
                 </span>
               </Link>
 
+              {/* ================= EMPLOYEE DOCUMENTS ================= */}
 
               <Link
-                to="/app/documents"
-                className="glisten-menu-item"
+                to="/app/employee-documents"
+                className={getMenuClass(
+                  "/app/employee-documents"
+                )}
               >
                 <span className="glisten-menu-icon">
                   📁
@@ -620,11 +626,14 @@ const Sidebar = () => {
                 </span>
               </Link>
 
+              {/* ================= PAYSLIPS ================= */}
 
               {employeeId && (
                 <Link
                   to={`/app/employee-payslips/${employeeId}`}
-                  className="glisten-menu-item"
+                  className={getMenuClass(
+                    `/app/employee-payslips/${employeeId}`
+                  )}
                 >
                   <span className="glisten-menu-icon">
                     💵
@@ -636,6 +645,7 @@ const Sidebar = () => {
                 </Link>
               )}
 
+              {/* ================= LOGOUT ================= */}
 
               <button
                 type="button"
@@ -655,7 +665,6 @@ const Sidebar = () => {
           )}
 
         </div>
-
       </aside>
     </>
   );

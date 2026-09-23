@@ -12,14 +12,17 @@ import {
 
 import Sidebar from "./components/sidebar";
 import LoginPage from "./components/LoginPage";
+
 import HoursManagement from "./components/HoursManagement";
 import MyLeaves from "./components/MyLeaves";
+
 import Employee from "./components/Employee";
 import AddEmployee from "./components/AddEmployee";
 import EditEmployee from "./components/EditEmployee";
+
 import LeaveRequests from "./components/LeaveRequests";
-import AdminHoursManagement
-  from "./components/AdminHoursManagement";
+import AdminHoursManagement from "./components/AdminHoursManagement";
+
 import EmployeeDashboard from "./components/EmployeeDashboard";
 import EmployeePayslips from "./components/EmployeePayslips";
 import ApplyLeave from "./components/ApplyLeave";
@@ -27,8 +30,10 @@ import ApplyLeave from "./components/ApplyLeave";
 import AddSalaryStructure from "./components/AddSalaryStructure";
 import GeneratePayslip from "./components/GeneratePayslips";
 import PayrollList from "./components/PayrollList";
+
 import AdminDocuments from "./components/AdminDocuments";
 import EmployeeDocuments from "./components/EmployeeDocuments";
+
 import ChangePassword from "./components/changepassword";
 import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
@@ -38,13 +43,27 @@ import ResetPassword from "./components/ResetPassword";
 ===================================================== */
 
 const RequireRole = ({ role, children }) => {
+  const token = localStorage.getItem("token");
   const userRole = localStorage.getItem("role");
 
+  /*
+   * No login token
+   */
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  /*
+   * No role
+   */
   if (!userRole) {
     return <Navigate to="/login" replace />;
   }
 
-  if (userRole !== role) {
+  /*
+   * Wrong role
+   */
+  if (userRole.toLowerCase() !== role.toLowerCase()) {
     return <Navigate to="/login" replace />;
   }
 
@@ -56,9 +75,13 @@ const RequireRole = ({ role, children }) => {
 ===================================================== */
 
 const AppLayout = () => {
+  const token = localStorage.getItem("token");
   const role = localStorage.getItem("role");
 
-  if (!role) {
+  /*
+   * User is not logged in
+   */
+  if (!token || !role) {
     return <Navigate to="/login" replace />;
   }
 
@@ -77,7 +100,7 @@ const AppLayout = () => {
       <main
         style={{
           flex: 1,
-          width: "calc(100% - 250px)",
+          width: "calc(100% - 215px)",
           minWidth: 0,
           boxSizing: "border-box",
         }}
@@ -94,49 +117,58 @@ const AppLayout = () => {
 
 const appRouter = createBrowserRouter(
   [
-    /* ================= ROOT ================= */
+    /* =================================================
+       ROOT
+    ================================================= */
 
     {
       path: "/",
       element: <Navigate to="/login" replace />,
     },
 
-    /* ================= LOGIN ================= */
+    /* =================================================
+       LOGIN
+    ================================================= */
 
     {
       path: "/login",
       element: <LoginPage />,
     },
 
-    /* ================= FORGOT PASSWORD ================= */
+    /* =================================================
+       FORGOT PASSWORD
+    ================================================= */
 
     {
       path: "/forgot-password",
       element: <ForgotPassword />,
     },
 
-    /* ================= RESET PASSWORD ================= */
+    /* =================================================
+       RESET PASSWORD
+    ================================================= */
 
     {
       path: "/reset-password",
       element: <ResetPassword />,
     },
-    
+
     /* =================================================
        APPLICATION
     ================================================= */
 
     {
       path: "/app",
-
       element: <AppLayout />,
 
       children: [
-        /* ================= ADMIN ================= */
+
+        /* =================================================
+           ADMIN - EMPLOYEES
+        ================================================= */
 
         {
           path: "employees",
-
           element: (
             <RequireRole role="admin">
               <Employee />
@@ -144,40 +176,25 @@ const appRouter = createBrowserRouter(
           ),
         },
 
+        /* =================================================
+           ADMIN - ADD EMPLOYEE
+        ================================================= */
+
         {
           path: "employees/add",
-
           element: (
             <RequireRole role="admin">
               <AddEmployee />
             </RequireRole>
           ),
         },
-      {
-  path: "documents",
-  element:
-    localStorage.getItem("role") === "admin" ? (
-      <RequireRole role="admin">
-        <AdminDocuments />
-      </RequireRole>
-    ) : (
-      <RequireRole role="employee">
-        <EmployeeDocuments />
-      </RequireRole>
-    ),
-},
-        {
-  path: "hours-management",
-  element: (
-    <RequireRole role="employee">
-      <HoursManagement />
-    </RequireRole>
-  )
-        },
+
+        /* =================================================
+           ADMIN - EDIT EMPLOYEE
+        ================================================= */
 
         {
           path: "employees/edit/:employeeId",
-
           element: (
             <RequireRole role="admin">
               <EditEmployee />
@@ -185,30 +202,38 @@ const appRouter = createBrowserRouter(
           ),
         },
 
-        /* ================= ADMIN LEAVE ================= */
+        /* =================================================
+           ADMIN - LEAVE REQUESTS
+        ================================================= */
 
         {
           path: "leave-requests",
-
           element: (
             <RequireRole role="admin">
               <LeaveRequests />
             </RequireRole>
           ),
         },
+
+        /* =================================================
+           ADMIN - EMPLOYEE HOURS
+        ================================================= */
+
         {
-  path: "employee-hours",
-  element: (
-    <RequireRole role="admin">
-      <AdminHoursManagement />
-    </RequireRole>
-  )
-},
-        /* ================= SALARY ================= */
+          path: "employee-hours",
+          element: (
+            <RequireRole role="admin">
+              <AdminHoursManagement />
+            </RequireRole>
+          ),
+        },
+
+        /* =================================================
+           ADMIN - SALARY STRUCTURE
+        ================================================= */
 
         {
           path: "salary-structure/add",
-
           element: (
             <RequireRole role="admin">
               <AddSalaryStructure />
@@ -216,11 +241,12 @@ const appRouter = createBrowserRouter(
           ),
         },
 
-        /* ================= PAYSLIP ================= */
+        /* =================================================
+           ADMIN - GENERATE PAYSLIP
+        ================================================= */
 
         {
           path: "generate-payslip",
-
           element: (
             <RequireRole role="admin">
               <GeneratePayslip />
@@ -228,11 +254,12 @@ const appRouter = createBrowserRouter(
           ),
         },
 
-        /* ================= PAYROLL ================= */
+        /* =================================================
+           ADMIN - PAYROLL LIST
+        ================================================= */
 
         {
           path: "payroll-list",
-
           element: (
             <RequireRole role="admin">
               <PayrollList />
@@ -240,13 +267,57 @@ const appRouter = createBrowserRouter(
           ),
         },
 
-        
+        /* =================================================
+           ADMIN - DOCUMENTS
+           
+           IMPORTANT:
+           Admin Documents has its own route.
+        ================================================= */
 
-        /* ================= EMPLOYEE DASHBOARD ================= */
+        {
+          path: "documents",
+          element: (
+            <RequireRole role="admin">
+              <AdminDocuments />
+            </RequireRole>
+          ),
+        },
+
+        /* =================================================
+           EMPLOYEE - DOCUMENTS
+           
+           IMPORTANT:
+           Employee Documents has a DIFFERENT route.
+        ================================================= */
+
+        {
+          path: "employee-documents",
+          element: (
+            <RequireRole role="employee">
+              <EmployeeDocuments />
+            </RequireRole>
+          ),
+        },
+
+        /* =================================================
+           EMPLOYEE - HOURS MANAGEMENT
+        ================================================= */
+
+        {
+          path: "hours-management",
+          element: (
+            <RequireRole role="employee">
+              <HoursManagement />
+            </RequireRole>
+          ),
+        },
+
+        /* =================================================
+           EMPLOYEE - DASHBOARD
+        ================================================= */
 
         {
           path: "employee-dashboard",
-
           element: (
             <RequireRole role="employee">
               <EmployeeDashboard />
@@ -254,11 +325,12 @@ const appRouter = createBrowserRouter(
           ),
         },
 
-        /* ================= APPLY LEAVE ================= */
+        /* =================================================
+           EMPLOYEE - APPLY LEAVE
+        ================================================= */
 
         {
           path: "apply-leave",
-
           element: (
             <RequireRole role="employee">
               <ApplyLeave />
@@ -266,11 +338,12 @@ const appRouter = createBrowserRouter(
           ),
         },
 
-        /* ================= MY LEAVES ================= */
+        /* =================================================
+           EMPLOYEE - MY LEAVES
+        ================================================= */
 
         {
           path: "my-leaves",
-
           element: (
             <RequireRole role="employee">
               <MyLeaves />
@@ -278,11 +351,12 @@ const appRouter = createBrowserRouter(
           ),
         },
 
-        /* ================= EMPLOYEE PAYSLIPS ================= */
+        /* =================================================
+           EMPLOYEE - PAYSLIPS
+        ================================================= */
 
         {
           path: "employee-payslips/:employeeId",
-
           element: (
             <RequireRole role="employee">
               <EmployeePayslips />
@@ -290,18 +364,37 @@ const appRouter = createBrowserRouter(
           ),
         },
 
-        /* ================= CHANGE PASSWORD ================= */
+        /* =================================================
+           EMPLOYEE - CHANGE PASSWORD
+        ================================================= */
 
         {
           path: "change-password",
-
           element: (
             <RequireRole role="employee">
               <ChangePassword />
             </RequireRole>
           ),
         },
+
+        /* =================================================
+           FALLBACK INSIDE /APP
+        ================================================= */
+
+        {
+          path: "*",
+          element: <AppRedirect />,
+        },
       ],
+    },
+
+    /* =================================================
+       GLOBAL FALLBACK
+    ================================================= */
+
+    {
+      path: "*",
+      element: <Navigate to="/login" replace />,
     },
   ],
 
@@ -313,11 +406,40 @@ const appRouter = createBrowserRouter(
     future: {
       v7_startTransition: true,
     },
-  },
+  }
 );
 
-const root = ReactDOM.createRoot(document.getElementById("root"));
+/* =====================================================
+   APP REDIRECT
+===================================================== */
 
-root.render(<RouterProvider router={appRouter} />);
+function AppRedirect() {
+  const token = localStorage.getItem("token");
+  const role = localStorage.getItem("role");
 
+  if (!token || !role) {
+    return <Navigate to="/login" replace />;
+  }
 
+  if (role.toLowerCase() === "admin") {
+    return <Navigate to="/app/employees" replace />;
+  }
+
+  if (role.toLowerCase() === "employee") {
+    return <Navigate to="/app/employee-dashboard" replace />;
+  }
+
+  return <Navigate to="/login" replace />;
+}
+
+/* =====================================================
+   ROOT RENDER
+===================================================== */
+
+const root = ReactDOM.createRoot(
+  document.getElementById("root")
+);
+
+root.render(
+  <RouterProvider router={appRouter} />
+);

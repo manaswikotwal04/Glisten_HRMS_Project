@@ -4,56 +4,270 @@ const EmployeeDocuments = () => {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const token = localStorage.getItem("token");
+  // Always get the latest token when making an API request
+  const getToken = () => localStorage.getItem("token");
+
+  /* =====================================================
+     LOAD DOCUMENTS
+     ===================================================== */
 
   useEffect(() => {
     const loadDocuments = async () => {
       try {
         setLoading(true);
 
+        const currentToken = getToken();
+
+        if (!currentToken) {
+          throw new Error(
+            "Authentication token not found. Please log in again."
+          );
+        }
+
         const response = await fetch("/api/documents", {
           method: "GET",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${currentToken}`,
           },
         });
 
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.message || "Failed to fetch documents");
+          if (response.status === 401) {
+            throw new Error(
+              "Your session has expired. Please log in again."
+            );
+          }
+
+          if (response.status === 403) {
+            throw new Error(
+              "You are not authorized to access company documents."
+            );
+          }
+
+          throw new Error(
+            data.message || "Failed to fetch documents"
+          );
         }
 
-        setDocuments(Array.isArray(data) ? data : []);
+        if (Array.isArray(data)) {
+          setDocuments(data);
+        } else if (Array.isArray(data?.documents)) {
+          setDocuments(data.documents);
+        } else {
+          setDocuments([]);
+        }
       } catch (error) {
         console.error("Documents error:", error);
-        alert("Unable to load company documents.");
+        alert(error.message || "Unable to load company documents.");
       } finally {
         setLoading(false);
       }
     };
 
-    if (token) {
-      loadDocuments();
-    } else {
-      setLoading(false);
-      alert("Authentication token not found.");
-    }
-  }, [token]);
+    loadDocuments();
+  }, []);
 
-  const getFileUrl = (filePath) => {
-    if (!filePath) return "#";
+  /* =====================================================
+     DOCUMENT URL
+     ===================================================== */
 
-    if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
-      return filePath;
+  const getDocumentUrl = (documentId) => {
+    if (!documentId) {
+      return "#";
     }
 
-    return filePath;
+    return `/api/documents/view/${encodeURIComponent(documentId)}`;
   };
+
+  /* =====================================================
+     VIEW DOCUMENT
+     ===================================================== */
+
+  const handleViewDocument = async (documentId) => {
+    if (!documentId) {
+      alert("Document ID is missing.");
+      return;
+    }
+
+    const currentToken = getToken();
+
+    if (!currentToken) {
+      alert("Authentication token not found. Please log in again.");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        getDocumentUrl(documentId),
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${currentToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        let message = "Unable to open document.";
+
+        try {
+          const data = await response.json();
+          message = data.message || message;
+        } catch {
+          // Response may not be JSON
+        }
+
+        if (response.status === 401) {
+          message = "Your session has expired. Please log in again.";
+        }
+
+        if (response.status === 403) {
+          message =
+            "You are not authorized to view this document.";
+        }
+
+        if (response.status === 404) {
+          message =
+            "Document was not found on the server.";
+        }
+
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      const newWindow = window.open(
+        blobUrl,
+        "_blank",
+        "noopener,noreferrer"
+      );
+
+      if (!newWindow) {
+        alert(
+          "Please allow pop-ups in your browser to view the document."
+        );
+      }
+
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+      }, 60000);
+    } catch (error) {
+      console.error("Document view error:", error);
+
+      alert(
+        error.message ||
+          "Unable to open document."
+      );
+    }
+  };
+
+  /* =====================================================
+     DOWNLOAD DOCUMENT
+     ===================================================== */
+
+  const handleDownloadDocument = async (
+    documentId,
+    fileName
+  ) => {
+    if (!documentId) {
+      alert("Document ID is missing.");
+      return;
+    }
+
+    const currentToken = getToken();
+
+    if (!currentToken) {
+      alert("Authentication token not found. Please log in again.");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        getDocumentUrl(documentId),
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${currentToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        let message = "Unable to download document.";
+
+        try {
+          const data = await response.json();
+          message = data.message || message;
+        } catch {
+          // Response may not be JSON
+        }
+
+        if (response.status === 401) {
+          message = "Your session has expired. Please log in again.";
+        }
+
+        if (response.status === 403) {
+          message =
+            "You are not authorized to download this document.";
+        }
+
+        if (response.status === 404) {
+          message =
+            "Document was not found on the server.";
+        }
+
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+
+      link.href = blobUrl;
+      link.download = fileName || "document";
+
+      document.body.appendChild(link);
+
+      link.click();
+
+      link.remove();
+
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+      }, 1000);
+    } catch (error) {
+      console.error(
+        "Document download error:",
+        error
+      );
+
+      alert(
+        error.message ||
+          "Unable to download document."
+      );
+    }
+  };
+
+  /* =====================================================
+     FILE EXTENSION
+     ===================================================== */
 
   const getExtension = (fileName = "") => {
-    return fileName.split(".").pop().toLowerCase();
+    return fileName
+      .split(".")
+      .pop()
+      .toLowerCase();
   };
+
+  /* =====================================================
+     FILE ICON
+     ===================================================== */
 
   const getFileIcon = (fileName = "") => {
     const extension = getExtension(fileName);
@@ -83,7 +297,13 @@ const EmployeeDocuments = () => {
   const canPreview = (fileName = "") => {
     const extension = getExtension(fileName);
 
-    return ["pdf", "jpg", "jpeg", "png"].includes(extension);
+    return [
+      
+      "pdf",
+      "jpg",
+      "jpeg",
+      "png",
+    ].includes(extension);
   };
 
   const getFileType = (fileName = "") => {
@@ -111,6 +331,10 @@ const EmployeeDocuments = () => {
     }
   };
 
+  /* =====================================================
+     LOADING
+     ===================================================== */
+
   if (loading) {
     return (
       <>
@@ -122,162 +346,277 @@ const EmployeeDocuments = () => {
 
             <h3>Loading documents</h3>
 
-            <p>Please wait while we fetch company documents.</p>
+            <p>
+              Please wait while we fetch
+              company documents.
+            </p>
           </div>
         </div>
       </>
     );
   }
 
+  /* =====================================================
+     PAGE
+     ===================================================== */
+
   return (
     <>
       <style>{styles}</style>
 
       <div className="documents-page">
-        {/* ================= HEADER ================= */}
+
+        {/* HEADER */}
 
         <div className="documents-header">
+
           <div className="documents-title-section">
-            <div className="documents-title-icon">📁</div>
+
+            <div className="documents-title-icon">
+              📁
+            </div>
 
             <div>
-              <h2>Company Documents</h2>
+              <h2>
+                Company Documents
+              </h2>
 
-              <p>Important documents and information shared by the company.</p>
+              <p>
+                Important documents and
+                information shared by the
+                company.
+              </p>
             </div>
+
           </div>
 
           <div className="documents-count-box">
-            <strong>{documents.length}</strong>
-            <span>{documents.length === 1 ? "Document" : "Documents"}</span>
+            <strong>
+              {documents.length}
+            </strong>
+
+            <span>
+              {documents.length === 1
+                ? "Document"
+                : "Documents"}
+            </span>
           </div>
+
         </div>
 
-        {/* ================= EMPTY ================= */}
+        {/* EMPTY */}
 
         {documents.length === 0 ? (
-          <div className="documents-empty-card">
-            <div className="empty-document-icon">📂</div>
 
-            <h3>No documents available</h3>
+          <div className="documents-empty-card">
+
+            <div className="empty-document-icon">
+              📂
+            </div>
+
+            <h3>
+              No documents available
+            </h3>
 
             <p>
-              Company documents uploaded by the administrator will appear here.
+              Company documents uploaded by
+              the administrator will appear
+              here.
             </p>
+
           </div>
+
         ) : (
-          /* ================= DOCUMENT SECTION ================= */
 
           <div className="employee-documents-section">
-            <div className="employee-documents-section-header">
-              <div>
-                <h3>Available Documents</h3>
 
-                <p>Documents shared with all employees</p>
+            <div className="employee-documents-section-header">
+
+              <div>
+
+                <h3>
+                  Available Documents
+                </h3>
+
+                <p>
+                  Documents shared with all
+                  employees
+                </p>
+
               </div>
 
               <span className="documents-total">
                 {documents.length}{" "}
-                {documents.length === 1 ? "document" : "documents"}
+                {documents.length === 1
+                  ? "document"
+                  : "documents"}
               </span>
+
             </div>
 
-            {/* ================= HORIZONTAL DOCUMENT LIST ================= */}
+            {/* DOCUMENT LIST */}
 
             <div className="employee-documents-list">
+
               {documents.map((doc) => {
-                const fileUrl = getFileUrl(doc.filePath);
 
-                const previewAvailable = canPreview(doc.originalFileName);
+                const fileName =
+                  doc.originalFileName ||
+                  doc.original_file_name ||
+                  "document";
 
-                const fileType = getFileType(doc.originalFileName);
+                const previewAvailable =
+                  canPreview(fileName);
+
+                const fileType =
+                  getFileType(fileName);
 
                 return (
-                  <div className="employee-document-row" key={doc.id}>
+
+                  <div
+                    className="employee-document-row"
+                    key={doc.id}
+                  >
+
                     {/* FILE ICON */}
 
                     <div className="document-file-icon">
-                      {getFileIcon(doc.originalFileName)}
+                      {getFileIcon(fileName)}
                     </div>
 
-                    {/* DOCUMENT NAME */}
+                    {/* DOCUMENT INFO */}
 
                     <div className="employee-document-info">
-                      <h3 title={doc.documentName}>{doc.documentName}</h3>
+
+                      <h3
+                        title={
+                          doc.documentName ||
+                          doc.document_name ||
+                          "Document"
+                        }
+                      >
+                        {doc.documentName ||
+                          doc.document_name ||
+                          "Document"}
+                      </h3>
 
                       <div className="document-file-name">
-                        <span>📎</span>
 
-                        <span title={doc.originalFileName}>
-                          {doc.originalFileName}
+                        <span>
+                          📎
                         </span>
+
+                        <span title={fileName}>
+                          {fileName}
+                        </span>
+
                       </div>
+
                     </div>
 
                     {/* TYPE */}
 
                     <div className="document-row-type">
+
                       <span className="document-type-badge">
-                        {doc.documentType || fileType}
+                        {doc.documentType ||
+                          doc.document_type ||
+                          fileType}
                       </span>
+
                     </div>
 
                     {/* DATE */}
 
                     <div className="document-row-date">
-                      <span>Uploaded</span>
+
+                      <span>
+                        Uploaded
+                      </span>
 
                       <strong>
-                        {new Date(doc.createdAt).toLocaleDateString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })}
+                        {doc.createdAt ||
+                        doc.created_at
+                          ? new Date(
+                              doc.createdAt ||
+                                doc.created_at
+                            ).toLocaleDateString(
+                              "en-IN",
+                              {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              }
+                            )
+                          : "—"}
                       </strong>
+
                     </div>
 
                     {/* ACTIONS */}
 
                     <div className="employee-document-actions">
+
                       {previewAvailable && (
-                        <a
-                          href={fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
+
+                        <button
+                          type="button"
                           className="document-view-btn"
+                          onClick={() =>
+                            handleViewDocument(
+                              doc.id
+                            )
+                          }
                         >
-                          <span>👁</span>
+                          <span>
+                            👁
+                          </span>
+
                           View
-                        </a>
+                        </button>
+
                       )}
 
-                      <a
-                        href={fileUrl}
-                        download={doc.originalFileName}
+                      <button
+                        type="button"
                         className="document-download-btn"
+                        onClick={() =>
+                          handleDownloadDocument(
+                            doc.id,
+                            fileName
+                          )
+                        }
                       >
-                        <span>⬇</span>
+                        <span>
+                          ⬇
+                        </span>
+
                         Download
-                      </a>
+                      </button>
+
                     </div>
+
                   </div>
+
                 );
               })}
+
             </div>
+
           </div>
+
         )}
+
       </div>
     </>
   );
 };
 
 /* =====================================================
-   ALL CSS INSIDE THIS COMPONENT
+   CSS
 ===================================================== */
 
 const styles = `
-
-/* MAIN PAGE */
 
 .documents-page {
   width: 100%;
@@ -286,9 +625,6 @@ const styles = `
   background: #f8fafc;
   min-height: 100%;
 }
-
-
-/* HEADER */
 
 .documents-header {
   display: flex;
@@ -328,9 +664,6 @@ const styles = `
   font-size: 14px;
 }
 
-
-/* DOCUMENT COUNT */
-
 .documents-count-box {
   min-width: 90px;
   padding: 10px 16px;
@@ -351,9 +684,6 @@ const styles = `
   font-size: 12px;
   color: #737b8c;
 }
-
-
-/* SECTION */
 
 .employee-documents-section {
   background: #ffffff;
@@ -388,37 +718,22 @@ const styles = `
   color: #5b6474;
 }
 
-
-/* =====================================================
-   HORIZONTAL DOCUMENT ROW
-===================================================== */
-
 .employee-documents-list {
   width: 100%;
 }
 
 .employee-document-row {
   display: grid;
-
-  /*
-    Icon | Document | Type | Date | Actions
-  */
-
   grid-template-columns:
     52px
     minmax(250px, 1fr)
     130px
     140px
     190px;
-
   align-items: center;
-
   gap: 18px;
-
   padding: 15px 20px;
-
   border-bottom: 1px solid #edf0f4;
-
   transition: background 0.2s ease;
 }
 
@@ -430,28 +745,17 @@ const styles = `
   background: #fafbff;
 }
 
-
-/* FILE ICON */
-
 .document-file-icon {
   width: 48px;
   height: 48px;
-
   border-radius: 11px;
-
   background: #f1f5f9;
-
   display: flex;
   align-items: center;
   justify-content: center;
-
   font-size: 22px;
-
   flex-shrink: 0;
 }
-
-
-/* DOCUMENT INFO */
 
 .employee-document-info {
   min-width: 0;
@@ -459,12 +763,9 @@ const styles = `
 
 .employee-document-info h3 {
   margin: 0 0 7px;
-
   font-size: 15px;
   font-weight: 650;
-
   color: #202938;
-
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -474,11 +775,8 @@ const styles = `
   display: flex;
   align-items: center;
   gap: 6px;
-
   color: #788293;
-
   font-size: 12px;
-
   min-width: 0;
 }
 
@@ -488,9 +786,6 @@ const styles = `
   white-space: nowrap;
 }
 
-
-/* TYPE */
-
 .document-row-type {
   display: flex;
   justify-content: center;
@@ -498,27 +793,16 @@ const styles = `
 
 .document-type-badge {
   display: inline-flex;
-
   align-items: center;
   justify-content: center;
-
   padding: 6px 10px;
-
   border-radius: 20px;
-
   background: #f1f5f9;
-
   color: #596273;
-
   font-size: 11px;
-
   font-weight: 600;
-
   white-space: nowrap;
 }
-
-
-/* DATE */
 
 .document-row-date {
   display: flex;
@@ -537,9 +821,6 @@ const styles = `
   font-weight: 600;
 }
 
-
-/* ACTIONS */
-
 .employee-document-actions {
   display: flex;
   align-items: center;
@@ -547,35 +828,22 @@ const styles = `
   gap: 8px;
 }
 
-
-/* VIEW */
-
 .document-view-btn,
 .document-download-btn {
   height: 34px;
-
   padding: 0 12px;
-
   border-radius: 8px;
-
   display: inline-flex;
-
   align-items: center;
   justify-content: center;
-
   gap: 6px;
-
   text-decoration: none;
-
   font-size: 12px;
-
   font-weight: 600;
-
   cursor: pointer;
-
   transition: all 0.2s ease;
-
   box-sizing: border-box;
+  border: none;
 }
 
 .document-view-btn {
@@ -596,18 +864,11 @@ const styles = `
   background: #293449;
 }
 
-
-/* EMPTY */
-
 .documents-empty-card {
   background: #ffffff;
-
   border: 1px solid #e6e9ef;
-
   border-radius: 14px;
-
   padding: 55px 20px;
-
   text-align: center;
 }
 
@@ -630,18 +891,11 @@ const styles = `
   line-height: 1.6;
 }
 
-
-/* LOADING */
-
 .documents-loading-card {
   background: #ffffff;
-
   border: 1px solid #e6e9ef;
-
   border-radius: 14px;
-
   padding: 60px 20px;
-
   text-align: center;
 }
 
@@ -659,14 +913,10 @@ const styles = `
 .documents-spinner {
   width: 32px;
   height: 32px;
-
   margin: auto;
-
   border: 3px solid #e5e7eb;
   border-top-color: #4f46e5;
-
   border-radius: 50%;
-
   animation: documentSpin 0.8s linear infinite;
 }
 
@@ -676,36 +926,22 @@ const styles = `
   }
 }
 
-
-/* =====================================================
-   TABLET
-===================================================== */
-
 @media (max-width: 1000px) {
-
   .employee-document-row {
     grid-template-columns:
       48px
       minmax(200px, 1fr)
       110px
       170px;
-
     gap: 12px;
   }
 
   .document-row-date {
     display: none;
   }
-
 }
 
-
-/* =====================================================
-   MOBILE
-===================================================== */
-
 @media (max-width: 700px) {
-
   .documents-page {
     padding: 14px;
   }
@@ -727,15 +963,11 @@ const styles = `
   }
 
   .employee-document-row {
-
     grid-template-columns:
       44px
       minmax(0, 1fr);
-
     gap: 12px;
-
     padding: 13px 15px;
-
   }
 
   .employee-document-row .document-file-icon {
@@ -749,24 +981,13 @@ const styles = `
   }
 
   .employee-document-actions {
-
     grid-column: 1 / -1;
-
     justify-content: flex-start;
-
     padding-left: 56px;
-
   }
-
 }
 
-
-/* =====================================================
-   SMALL MOBILE
-===================================================== */
-
 @media (max-width: 450px) {
-
   .documents-title-icon {
     width: 40px;
     height: 40px;
@@ -783,7 +1004,6 @@ const styles = `
   .employee-document-actions {
     padding-left: 0;
   }
-
 }
 
 `;

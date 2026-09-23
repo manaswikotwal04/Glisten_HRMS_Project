@@ -5,6 +5,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 payslips/
+uploads/
 
 dist/
 build/

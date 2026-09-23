@@ -3,11 +3,18 @@ import express from "express";
 import {
   uploadDocument,
   getDocuments,
+  viewDocument,
   deleteDocument,
 } from "../controllers/document.controller.js";
 
-import { auth, adminAuth } from "../middleware/auth.middleware.js";
-import { documentUpload } from "../middleware/document.middleware.js";
+import {
+  auth,
+  adminAuth,
+} from "../middleware/auth.middleware.js";
+
+import {
+  documentUpload,
+} from "../middleware/document.middleware.js";
 
 const router = express.Router();
 
@@ -32,6 +39,23 @@ router.post(
   adminAuth,
   documentUpload.single("document"),
   uploadDocument
+);
+
+/*
+====================================================
+EMPLOYEE + ADMIN - VIEW / DOWNLOAD DOCUMENT
+====================================================
+IMPORTANT:
+Use `auth` here, NOT `adminAuth`.
+
+Employees need permission to access:
+GET /api/documents/view/:id
+====================================================
+*/
+router.get(
+  "/view/:id",
+  auth,
+  viewDocument
 );
 
 /*
